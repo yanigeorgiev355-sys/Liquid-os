@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit, deleteDoc, doc } from "firebase/firestore";
+import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit, deleteDoc } from "firebase/firestore";
 
 // --- CSS STYLES ---
 const styleTag = `
@@ -12,7 +12,7 @@ const styleTag = `
   .mic-active { box-shadow: 0 0 15px #ef4444; background: #ef4444 !important; }
 `;
 
-// --- SETUP SCREEN (Keeps keys safe) ---
+// --- SETUP SCREEN ---
 const SetupScreen = ({ onSave }) => {
   const [apiKey, setApiKey] = useState('');
   const [fbKey, setFbKey] = useState('');
@@ -35,12 +35,11 @@ const SetupScreen = ({ onSave }) => {
   );
 };
 
-// --- THE "GENERATIVE" WIDGET (The AI Controls This) ---
+// --- DYNAMIC WIDGET ---
 const DynamicWidget = ({ db }) => {
   const [data, setData] = useState([]);
   const [config, setConfig] = useState({ title: "History", color: "#3b82f6", icon: "📜" });
 
-  // Load the latest "Config" from AI's last decision
   useEffect(() => {
     if(!db) return;
     const q = query(collection(db, "history"), orderBy("timestamp", "desc"), limit(10));
@@ -49,10 +48,10 @@ const DynamicWidget = ({ db }) => {
       let lastUI = null;
       snap.forEach(doc => {
         const d = doc.data();
-        if(d.type === 'ui_config') lastUI = d; // AI decided the UI look
+        if(d.type === 'ui_config') lastUI = d; 
         if(d.type === 'data_entry') list.push({ ...d, id: doc.id });
       });
-      if(lastUI) setConfig(lastUI); // Apply AI's design
+      if(lastUI) setConfig(lastUI);
       setData(list);
     });
   }, [db, data]); // Refresh when data changes
@@ -98,7 +97,6 @@ function App() {
   const handleSend = async (text) => {
     if (!text.trim()) return;
     
-    // Add user message to local chat history
     const newHistory = [...messages, { type: 'text', content: text, sender: 'user' }];
     setMessages(newHistory);
     setInput('');
@@ -107,29 +105,27 @@ function App() {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${config.gemini}`;
       
-      // 🟢 CRITICAL: Send CHAT HISTORY to AI so it has Context
       const chatContext = newHistory.map(m => `${m.sender}: ${m.content}`).join("\n");
 
       const payload = {
         contents: [{
           parts: [{
             text: `SYSTEM: You are LiquidOS, a Generative UI engine.
-            
-            YOUR GOAL: Manage the user's data and the INTERFACE itself.
-            
-            HISTORY OF CHAT:
+            HISTORY:
             ${chatContext}
 
-            AVAILABLE ACTIONS (JSON):
-            1. { "action": "chat", "reply": "..." } -> Just talk.
-            2. { "action": "update_ui", "title": "...", "color": "hex", "icon": "emoji", "reply": "..." } -> Change how the widget looks (e.g., if user talks about money, make it "Expenses" and Red. If movies, make it "Watchlist" and Blue).
-            3. { "action": "add_data", "label": "...", "value": "...", "reply": "..." } -> Add an item to the list.
-            4. { "action": "delete_last", "reply": "..." } -> Remove the last item if user says "mistake" or "undo".
+            AVAILABLE ACTIONS (JSON ONLY):
+            1. { "action": "chat", "reply": "..." }
+            2. { "action": "update_ui", "title": "...", "color": "hex", "icon": "emoji", "reply": "..." }
+            3. { "action": "add_data", "label": "...", "value": "...", "reply": "..." }
+            4. { "action": "delete_last", "reply": "..." }
 
             RULES:
-            - Decide the UI structure based on the CONTEXT.
-            - If the user changes topics (e.g. from Money to Movies), send an "update_ui" action to re-skin the widget.
-            - Always reply with valid JSON only.`
+            - If user tracks money -> "Expenses" (Red).
+            - If user tracks movies -> "Watchlist" (Purple).
+            - If user tracks habits -> "Habits" (Green).
+            - Always match the UI to the TOPIC.
+            `
           }]
         }]
       };
@@ -139,7 +135,15 @@ function App() {
       
       if (!data.candidates) throw new Error("AI Silent");
       const aiText = data.candidates[0].content.parts[0].text;
-      const toolData = JSON.parse(aiText.replace(/```json/g, '').replace(/```/g, '').trim());
+      
+      // 🟢 THE FIX: Surgical JSON Extraction
+      // Find the first '{' and the last '}' and ignore everything else.
+      const jsonStart = aiText.indexOf('{');
+      const jsonEnd = aiText.lastIndexOf('}');
+      if (jsonStart === -1 || jsonEnd === -1) throw new Error("No JSON found");
+      
+      const cleanJson = aiText.substring(jsonStart, jsonEnd + 1);
+      const toolData = JSON.parse(cleanJson);
 
       // EXECUTE AI DECISION
       if (toolData.action === 'add_data') {
@@ -151,8 +155,6 @@ function App() {
         setMessages(prev => [...prev, { type: 'text', content: toolData.reply || "Interface updated.", sender: 'ai' }]);
       }
       else if (toolData.action === 'delete_last') {
-        // Simple logic to find latest entry and delete
-        // Note: In a real app we'd need exact IDs, but this works for MVP
         if(db) {
             const q = query(collection(db, "history"), orderBy("timestamp", "desc"), limit(1));
             const snap = await getDocs(q);
@@ -165,7 +167,8 @@ function App() {
       }
 
     } catch (e) {
-      setMessages(prev => [...prev, { type: 'text', content: 'Error: ' + e.message, sender: 'ai' }]);
+      console.error(e);
+      setMessages(prev => [...prev, { type: 'text', content: 'Thinking Error (Try again)', sender: 'ai' }]);
     } finally {
       setLoading(false);
     }
@@ -199,9 +202,7 @@ function App() {
       </div>
       
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-        {/* THE DYNAMIC WIDGET IS ALWAYS VISIBLE NOW */}
         <DynamicWidget db={db} />
-        
         {messages.map((msg, i) => (
           <div key={i} style={{ alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
              <div style={{ background: msg.sender === 'user' ? '#2563eb' : '#1e293b', padding: '12px', borderRadius: '12px', fontSize: '0.9rem' }}>{msg.content}</div>
