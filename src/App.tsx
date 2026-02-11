@@ -101,8 +101,9 @@ function App() {
     setLoading(true);
 
     try {
-      // FIX: Changed model to 'gemini-pro' which is universally available
-      const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+      // USING THE FAST MODEL
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      
       const prompt = `You are LiquidOS. The user said: "${text}". 
       Reply ONLY in JSON format: {"tool": "coin"|"stats"|"text", "reply": "short message"}. 
       If they seem indecisive, use "coin". If they ask for history, use "stats".`;
@@ -118,6 +119,7 @@ function App() {
         setMessages(prev => [...prev, { type: 'component', content: data.tool, sender: 'ai' }]);
       }
     } catch (e) {
+      console.error(e);
       setMessages(prev => [...prev, { type: 'text', content: 'AI Error: ' + e.message, sender: 'ai' }]);
     } finally {
       setLoading(false);
