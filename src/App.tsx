@@ -3,7 +3,6 @@ import { initializeApp } from "firebase/app";
 import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit } from "firebase/firestore";
 
 // --- CONFIGURATION ---
-// Paste your key here. No extra spaces.
 const GEMINI_API_KEY = "AIzaSyAhhB16FzCUJtjfEmB7llffOgdavtEOQMU"; 
 
 const firebaseConfig = {
@@ -15,7 +14,7 @@ const firebaseConfig = {
   appId: "1:1091307817494:web:437b4013da4ad0bdc60337"
 };
 
-// Initialize Firebase Only (No AI SDK needed)
+// Initialize Firebase
 let db;
 try {
   const app = initializeApp(firebaseConfig);
@@ -90,7 +89,6 @@ function App() {
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-  // --- THE NEW "DIRECT LINE" AI FUNCTION ---
   const handleSend = async (text) => {
     if (!text.trim()) return;
     setMessages(prev => [...prev, { type: 'text', content: text, sender: 'user' }]);
@@ -98,9 +96,8 @@ function App() {
     setLoading(true);
 
     try {
-      // 1. We construct the URL manually. This bypasses the old SDK.
-      // We use 'gemini-1.5-flash' which is fast and supports JSON.
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+      // FIX: Changed model to 'gemini-pro' (Universal Availability)
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
       
       const payload = {
         contents: [{
@@ -112,7 +109,6 @@ function App() {
         }]
       };
 
-      // 2. Send the "Direct Line" message
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -121,12 +117,10 @@ function App() {
 
       const data = await response.json();
       
-      // 3. Check for errors
       if (data.error) {
         throw new Error(data.error.message);
       }
 
-      // 4. Parse the AI's reply
       const aiText = data.candidates[0].content.parts[0].text;
       const cleanJson = aiText.replace(/```json/g, '').replace(/```/g, '').trim();
       const toolData = JSON.parse(cleanJson);
