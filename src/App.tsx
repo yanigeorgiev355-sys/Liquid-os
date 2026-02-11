@@ -1,6 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-// --- DATABASE MANAGER (The "Memory") ---
+// --- INTERNAL STYLES (The Paint) ---
+// We inject standard CSS for animations so we don't need Tailwind config
+const styleTag = `
+  @keyframes spin { 0% { transform: rotateY(0deg); } 100% { transform: rotateY(1800deg); } }
+  @keyframes breathe { 0% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.5); opacity: 1; } 100% { transform: scale(1); opacity: 0.5; } }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); } 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); } }
+  .animate-spin-fast { animation: spin 1s ease-out forwards; }
+  .animate-breathe { animation: breathe 4s infinite ease-in-out; }
+  .animate-pulse-ring { animation: pulse 2s infinite; }
+`;
+
+// --- DATABASE (The Memory) ---
 const DB = {
   save: (key, data) => {
     const current = DB.load(key) || [];
@@ -25,7 +36,6 @@ const CoinFlipper = () => {
       const outcome = Math.random() > 0.5 ? 'HEADS' : 'TAILS';
       setResult(outcome);
       setFlipping(false);
-      // SAVE TO MEMORY
       DB.save('coin_history', { outcome });
     }, 1000);
   };
@@ -33,16 +43,26 @@ const CoinFlipper = () => {
   useEffect(() => { flip(); }, []);
 
   return (
-    <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 w-full max-w-sm mx-auto text-center shadow-xl">
-      <div className="flex justify-center mb-4">
-        <div className={`w-24 h-24 rounded-full border-4 border-blue-500 flex items-center justify-center text-2xl font-bold bg-slate-900 ${flipping ? 'animate-spin' : ''}`}>
-          {result ? result[0] : '❓'}
+    <div style={{ background: '#1e293b', padding: '20px', borderRadius: '16px', border: '1px solid #334155', textAlign: 'center', margin: '10px 0', color: 'white' }}>
+      <div style={{ height: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className={flipping ? 'animate-spin-fast' : ''} style={{ width: '80px', height: '80px', borderRadius: '50%', border: '4px solid #3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem', background: '#0f172a', margin: '0 auto' }}>
+          {result ? (result === 'HEADS' ? '👑' : '🦅') : '❓'}
         </div>
       </div>
-      <h3 className="text-xl font-bold mb-2 text-white">{result || 'Flipping...'}</h3>
-      <button onClick={flip} className="w-full py-3 bg-blue-600 rounded-xl font-bold text-white active:scale-95 transition-all">
+      <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: '10px 0' }}>{result || 'Flipping...'}</h3>
+      <button onClick={flip} style={{ width: '100%', padding: '12px', background: '#2563eb', border: 'none', borderRadius: '12px', color: 'white', fontWeight: 'bold', fontSize: '1rem' }}>
         🔄 Flip Again
       </button>
+    </div>
+  );
+};
+
+const FocusTimer = () => {
+  return (
+    <div style={{ background: '#1e293b', padding: '30px', borderRadius: '16px', border: '1px solid #334155', textAlign: 'center', color: 'white' }}>
+      <div className="animate-breathe" style={{ fontSize: '4rem', marginBottom: '20px' }}>💨</div>
+      <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: '0 0 5px 0' }}>Inhale</h2>
+      <p style={{ color: '#94a3b8', margin: 0 }}>Sync your breath.</p>
     </div>
   );
 };
@@ -52,48 +72,31 @@ const StatsBoard = () => {
   const heads = history.filter(h => h.outcome === 'HEADS').length;
   const tails = history.filter(h => h.outcome === 'TAILS').length;
   const total = heads + tails;
-
   const headsPct = total ? (heads / total) * 100 : 0;
-  const tailsPct = total ? (tails / total) * 100 : 0;
 
   return (
-    <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 w-full text-sm">
-      <h3 className="text-lg font-bold mb-4 text-slate-300">📊 Analysis</h3>
+    <div style={{ background: '#1e293b', padding: '20px', borderRadius: '16px', border: '1px solid #334155', color: 'white' }}>
+      <h3 style={{ margin: '0 0 15px 0', borderBottom: '1px solid #334155', paddingBottom: '10px' }}>📊 Your Analysis</h3>
       
-      <div className="mb-4">
-        <div className="flex justify-between mb-1">
+      <div style={{ marginBottom: '15px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '0.9rem' }}>
           <span>Heads ({heads})</span>
           <span>{Math.round(headsPct)}%</span>
         </div>
-        <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
-          <div className="h-full bg-blue-500" style={{ width: `${headsPct}%` }}></div>
+        <div style={{ height: '8px', background: '#334155', borderRadius: '4px', overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${headsPct}%`, background: '#3b82f6' }}></div>
         </div>
       </div>
 
-      <div className="mb-6">
-        <div className="flex justify-between mb-1">
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '0.9rem' }}>
           <span>Tails ({tails})</span>
-          <span>{Math.round(tailsPct)}%</span>
+          <span>{Math.round(100 - headsPct)}%</span>
         </div>
-        <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
-          <div className="h-full bg-red-500" style={{ width: `${tailsPct}%` }}></div>
+        <div style={{ height: '8px', background: '#334155', borderRadius: '4px', overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${100 - headsPct}%`, background: '#ef4444' }}></div>
         </div>
       </div>
-      
-      <div className="text-xs text-slate-500 text-center">
-        Total Flips: {total}
-      </div>
-    </div>
-  );
-};
-
-const FocusTimer = () => {
-  return (
-    <div className="bg-slate-800 p-8 rounded-2xl border border-slate-700 w-full max-w-sm mx-auto text-center overflow-hidden relative">
-      <div className="absolute inset-0 bg-blue-500/10 animate-pulse"></div>
-      <div className="text-6xl animate-bounce mb-4">💨</div>
-      <h2 className="text-2xl font-bold mb-2 text-white">Inhale</h2>
-      <p className="text-slate-400">Sync your breath.</p>
     </div>
   );
 };
@@ -102,7 +105,7 @@ const FocusTimer = () => {
 
 function App() {
   const [messages, setMessages] = useState([
-    { type: 'text', content: 'System Online. Memory Active.', sender: 'ai' }
+    { type: 'text', content: 'Systems Restored. Visuals Online.', sender: 'ai' }
   ]);
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
@@ -112,7 +115,6 @@ function App() {
 
   const handleSend = (text) => {
     if (!text || !text.trim()) return;
-
     setMessages(prev => [...prev, { type: 'text', content: text, sender: 'user' }]);
     setInput('');
 
@@ -127,19 +129,15 @@ function App() {
       else if (lower.includes('stat') || lower.includes('analy')) {
         setMessages(prev => [...prev, { type: 'component', content: 'stats', sender: 'ai' }]);
       }
-      else if (lower.includes('clear') || lower.includes('reset')) {
-        DB.clear();
-        setMessages(prev => [...prev, { type: 'text', content: 'Memory Wiped.', sender: 'ai' }]);
-      }
       else {
-        setMessages(prev => [...prev, { type: 'text', content: `Try "Flip Coin", "Show Stats", or "Clear Memory".`, sender: 'ai' }]);
+        setMessages(prev => [...prev, { type: 'text', content: `Try "Flip Coin", "Focus", or "Stats".`, sender: 'ai' }]);
       }
-    }, 600);
+    }, 500);
   };
 
   const toggleMic = () => {
     const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
-    if (!SpeechRecognition) { alert("Use Chrome."); return; }
+    if (!SpeechRecognition) { alert("Use Chrome for Voice."); return; }
 
     if (isListening) {
       setIsListening(false);
@@ -148,10 +146,10 @@ function App() {
       recognition.lang = 'en-US';
       recognition.continuous = false;
       recognition.onstart = () => setIsListening(true);
-      recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        setInput(transcript);
-        handleSend(transcript);
+      recognition.onresult = (e) => {
+        const text = e.results[0][0].transcript;
+        setInput(text);
+        handleSend(text);
       };
       recognition.onend = () => setIsListening(false);
       recognition.start();
@@ -159,26 +157,38 @@ function App() {
   };
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-slate-950 text-slate-100 font-sans">
+    <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', background: '#0f172a', fontFamily: 'sans-serif', color: 'white' }}>
+      <style>{styleTag}</style>
+      
       {/* HEADER */}
-      <div className="p-4 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center sticky top-0 z-10">
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-          <span className="font-bold tracking-wider text-sm">LIQUID OS v0.3</span>
+      <div style={{ padding: '15px', background: 'rgba(15, 23, 42, 0.9)', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div className="animate-pulse-ring" style={{ width: '10px', height: '10px', background: '#22c55e', borderRadius: '50%' }}></div>
+          <span style={{ fontWeight: 'bold', letterSpacing: '1px', fontSize: '0.9rem' }}>LIQUID OS v1.0</span>
         </div>
-        <span onClick={() => handleSend("Show Stats")}>📊</span>
+        <button onClick={() => handleSend("Stats")} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer' }}>📊</button>
       </div>
 
-      {/* CHAT STREAM */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+      {/* CHAT AREA */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
         {messages.map((msg, i) => (
-          <div key={i} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+          <div key={i} style={{ display: 'flex', justifyContent: msg.sender === 'user' ? 'flex-end' : 'flex-start' }}>
             {msg.type === 'text' ? (
-              <div className={`max-w-[80%] p-3 rounded-2xl text-sm ${
-                msg.sender === 'user' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-slate-800 text-slate-200 rounded-bl-none'
-              }`}>{msg.content}</div>
+              <div style={{ 
+                maxWidth: '80%', 
+                padding: '12px 16px', 
+                borderRadius: '16px', 
+                fontSize: '0.95rem', 
+                lineHeight: '1.5',
+                background: msg.sender === 'user' ? '#2563eb' : '#1e293b',
+                color: msg.sender === 'user' ? 'white' : '#e2e8f0',
+                borderBottomRightRadius: msg.sender === 'user' ? '4px' : '16px',
+                borderBottomLeftRadius: msg.sender === 'user' ? '16px' : '4px'
+              }}>
+                {msg.content}
+              </div>
             ) : (
-              <div className="w-full">
+              <div style={{ width: '100%' }}>
                 {msg.content === 'coin' && <CoinFlipper />}
                 {msg.content === 'stats' && <StatsBoard />}
                 {msg.content === 'focus' && <FocusTimer />}
@@ -190,13 +200,29 @@ function App() {
       </div>
 
       {/* INPUT BAR */}
-      <div className="p-4 bg-slate-900 border-t border-slate-800 pb-8">
-        <div className="flex gap-2 max-w-lg mx-auto">
-          <button onClick={toggleMic} className={`w-12 h-12 rounded-full flex items-center justify-center text-xl transition-all ${isListening ? 'bg-red-500 shadow-[0_0_15px_red]' : 'bg-slate-800'}`}>
+      <div style={{ padding: '15px', background: '#0f172a', borderTop: '1px solid #1e293b' }}>
+        <div style={{ display: 'flex', gap: '10px', maxWidth: '500px', margin: '0 auto' }}>
+          <button onClick={toggleMic} style={{ 
+            width: '50px', height: '50px', borderRadius: '50%', border: 'none', 
+            background: isListening ? '#ef4444' : '#1e293b', 
+            color: 'white', fontSize: '1.2rem', transition: '0.2s',
+            boxShadow: isListening ? '0 0 15px rgba(239, 68, 68, 0.5)' : 'none'
+          }}>
             {isListening ? '🛑' : '🎤'}
           </button>
-          <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend(input)} placeholder={isListening ? "Listening..." : "Type..."} className="flex-1 bg-slate-950 border border-slate-700 rounded-full px-4 focus:outline-none focus:border-blue-500" />
-          <button onClick={() => handleSend(input)} className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center font-bold">➡️</button>
+          
+          <input 
+            value={input} 
+            onChange={(e) => setInput(e.target.value)} 
+            onKeyDown={(e) => e.key === 'Enter' && handleSend(input)}
+            placeholder={isListening ? "Listening..." : "Type here..."} 
+            style={{ 
+              flex: 1, background: '#1e293b', border: '1px solid #334155', 
+              borderRadius: '25px', padding: '0 20px', color: 'white', fontSize: '1rem', outline: 'none' 
+            }} 
+          />
+          
+          <button onClick={() => handleSend(input)} style={{ width: '50px', height: '50px', borderRadius: '50%', background: '#2563eb', border: 'none', color: 'white', fontSize: '1.2rem' }}>➡️</button>
         </div>
       </div>
     </div>
