@@ -3,54 +3,59 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Liquid OS (v4.3 Stable)</title>
+  <title>Liquid OS (v4.4 Stable)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    /* Natural Scrolling Architecture */
-    body { font-family: sans-serif; background-color: #0f172a; color: white; margin: 0; display: flex; flex-direction: column; min-height: 100vh; }
-    #chat-history { flex: 1; padding: 1rem; padding-bottom: 120px; /* Space for sticky input */ }
-    .prose p { margin-bottom: 0.8em; }
-    #tool-drawer { transition: transform 0.4s ease-out; z-index: 50; }
+    /* 📱 MOBILE RESILIENCE ARCHITECTURE */
+    html, body { height: 100%; margin: 0; padding: 0; background-color: #0f172a; overflow: hidden; }
+    body { display: flex; flex-direction: column; font-family: sans-serif; }
+    
+    #chat-history { flex: 1; overflow-y: auto; padding: 1rem; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; gap: 1rem; }
+    #tool-drawer { position: fixed; bottom: 0; left: 0; right: 0; background: #1e293b; border-top: 1px solid #334155; border-radius: 2rem 2rem 0 0; transform: translateY(100%); transition: transform 0.3s ease; z-index: 40; padding: 1.5rem; max-height: 70%; overflow-y: auto; }
     .drawer-open { transform: translateY(0) !important; }
-    input:focus { font-size: 16px !important; /* Prevents iOS zoom */ }
+    
+    /* Input stays at the bottom of the visible area */
+    footer { padding: 1rem; background: #0f172a; border-top: 1px solid #1e293b; shrink-0; }
+    input { font-size: 16px !important; } /* Prevents iOS/Android Zoom */
   </style>
 </head>
 <body>
 
-  <header class="sticky top-0 h-14 border-b border-slate-800 flex justify-between items-center px-4 bg-slate-900/90 backdrop-blur-md z-40">
-    <h1 class="font-bold text-sm tracking-widest text-blue-400">LIQUID AGENT v4.3</h1>
-    <button onclick="resetSystem()" class="text-[10px] text-red-500 font-bold uppercase">Reset</button>
+  <header class="h-14 border-b border-slate-800 flex justify-between items-center px-4 bg-slate-900 shrink-0">
+    <h1 class="font-bold text-sm tracking-widest text-blue-400">LIQUID AGENT v4.4</h1>
+    <button onclick="resetSystem()" class="text-[10px] text-red-500 font-bold">RESET</button>
   </header>
 
-  <main id="chat-history" class="space-y-4">
+  <main id="chat-history">
     <div class="flex justify-start">
-      <div class="bg-slate-800 p-4 rounded-2xl text-sm max-w-[90%] border border-slate-700/50">
-        System Stable. I've switched to a natural scroll layout to prevent keyboard glitches.
+      <div class="bg-slate-800 p-4 rounded-2xl text-sm max-w-[90%] border border-slate-700/50 text-slate-200">
+        System Stable. I have locked the layout to prevent jumping.
       </div>
     </div>
   </main>
 
-  <div id="tool-drawer" class="fixed inset-x-0 bottom-0 bg-slate-900 border-t border-slate-700 p-6 rounded-t-[2.5rem] shadow-2xl max-h-[85vh] overflow-y-auto transform translate-y-full">
+  <div id="tool-drawer">
     <div class="flex justify-between items-center mb-6">
-      <div class="w-12 h-1.5 bg-slate-700 rounded-full absolute top-3 left-1/2 -translate-x-1/2"></div>
-      <button onclick="closeTool()" class="ml-auto text-slate-500 p-2 text-xl font-bold">✕</button>
+      <div class="w-12 h-1 bg-slate-700 rounded-full absolute top-3 left-1/2 -translate-x-1/2"></div>
+      <span class="text-[10px] font-black text-slate-500 uppercase">Active Tool</span>
+      <button onclick="closeTool()" class="text-slate-500 text-xl font-bold p-2">✕</button>
     </div>
     <div id="tool-content" class="flex flex-col gap-4"></div>
   </div>
 
-  <footer class="sticky bottom-0 p-4 bg-slate-950/95 backdrop-blur-md border-t border-slate-800">
+  <footer>
     <div class="flex gap-2 max-w-4xl mx-auto items-center">
       <input id="user-input" type="text" placeholder="Explain your goal..." 
-             class="flex-1 bg-slate-900 p-4 rounded-2xl outline-none text-white border border-slate-800 focus:border-blue-500 text-[16px]">
-      <button onclick="sendMessage()" id="send-btn" class="bg-blue-600 w-12 h-12 rounded-xl font-bold flex items-center justify-center shadow-lg active:scale-90 transition">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+             class="flex-1 bg-slate-800 p-4 rounded-2xl outline-none text-white border border-slate-700 focus:border-blue-500 shadow-inner">
+      <button onclick="sendMessage()" id="send-btn" class="bg-blue-600 w-12 h-12 rounded-xl flex items-center justify-center shadow-lg active:scale-95 transition">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
       </button>
     </div>
   </footer>
 
-  <div id="setup-screen" class="hidden fixed inset-0 bg-slate-950 flex items-center justify-center z-[60] p-6">
+  <div id="setup-screen" class="hidden fixed inset-0 bg-slate-950 flex items-center justify-center z-[50] p-6">
     <div class="bg-slate-900 p-8 rounded-3xl w-full max-w-sm border border-slate-800 text-center">
-      <h2 class="text-xl font-bold mb-6 text-blue-400">Initialize Agent</h2>
+      <h2 class="text-xl font-bold mb-4 text-blue-400">Initialize</h2>
       <input id="api-key" type="password" placeholder="Gemini API Key" class="w-full bg-slate-800 border border-slate-700 p-4 rounded-xl mb-4 text-white outline-none">
       <button onclick="saveConfig()" class="w-full bg-blue-600 p-4 rounded-xl font-bold">Launch</button>
     </div>
@@ -61,7 +66,7 @@
     let STATE = {}; 
     let CURRENT_LAYOUT = [];
 
-    const PROMPT = `Reason first in text, then append tool JSON in \`\`\`json blocks. 
+    const PROMPT = `You are Liquid OS. Reason in text, then append tool JSON in \`\`\`json blocks. 
     Format: {"state":{}, "layout":[]}. Atoms: hero, button, input, list_view.`;
 
     window.onload = () => {
@@ -74,7 +79,8 @@
       const key = document.getElementById('api-key').value.trim();
       localStorage.setItem("liquid_os_key", key); location.reload();
     }
-    function resetSystem() { if(confirm("Reset?")) { localStorage.clear(); location.reload(); } }
+    
+    function resetSystem() { if(confirm("Wipe all data?")) { localStorage.clear(); location.reload(); } }
 
     async function sendMessage() {
       const input = document.getElementById('user-input');
@@ -83,9 +89,9 @@
 
       appendChat('user', text);
       input.value = '';
+      input.blur(); // ⌨️ Force keyboard to close immediately
       
-      const loader = appendChat('ai', '<span class="animate-pulse">Thinking...</span>');
-      window.scrollTo(0, document.body.scrollHeight);
+      const loader = appendChat('ai', '<span class="animate-pulse">Reasoning...</span>');
 
       try {
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${CONFIG.key}`, {
@@ -94,6 +100,8 @@
         });
         const data = await res.json();
         loader.parentElement.parentElement.remove();
+
+        if (data.error) throw new Error(data.error.message);
 
         const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response";
         const jsonMatch = raw.match(/```json([\s\S]*?)```/);
@@ -112,7 +120,6 @@
           renderTool();
           document.getElementById('tool-drawer').classList.add('drawer-open');
         }
-        window.scrollTo(0, document.body.scrollHeight);
       } catch (e) { appendChat('ai', "Error: " + e.message); }
     }
 
@@ -127,17 +134,17 @@
         }
 
         if (atom.type === 'hero') {
-          const d = document.createElement('div'); d.className = "bg-slate-800 p-8 rounded-3xl text-center border border-slate-700 shadow-xl";
-          d.innerHTML = `<h2 class="text-[10px] uppercase font-black text-slate-500 mb-2">${props.label||'Status'}</h2><div class="text-6xl font-black">${val}</div>`;
+          const d = document.createElement('div'); d.className = "bg-slate-700/50 p-6 rounded-3xl text-center border border-slate-600/50";
+          d.innerHTML = `<h2 class="text-[10px] uppercase font-bold text-slate-400 mb-1">${props.label||'Status'}</h2><div class="text-5xl font-black">${val}</div>`;
           c.appendChild(d);
         }
         if (atom.type === 'button') {
-          const b = document.createElement('button'); b.className = "w-full py-5 rounded-2xl font-black bg-blue-600 uppercase tracking-widest text-xs shadow-lg";
+          const b = document.createElement('button'); b.className = "w-full py-4 rounded-2xl font-bold bg-blue-600 text-sm shadow-lg";
           b.innerText = props.label || 'Action';
           b.onclick = () => {
             const s = atom.script || props.script;
             if (s.cmd === 'add') STATE[s.key] = Number(STATE[s.key]||0) + Number(s.val);
-            if (s.cmd === 'push') { STATE[s.key].push(STATE[s.source]); STATE[s.source] = ""; }
+            if (s.cmd === 'push') { if(!Array.isArray(STATE[s.key])) STATE[s.key] = []; STATE[s.key].push(STATE[s.source]); STATE[s.source] = ""; }
             renderTool();
           };
           c.appendChild(b);
@@ -148,11 +155,13 @@
     function appendChat(role, text) {
       const box = document.getElementById('chat-history');
       const div = document.createElement('div');
-      div.className = `flex ${role==='user'?'justify-end':'justify-start'}`;
-      div.innerHTML = `<div class="${role==='user'?'bg-blue-600 text-white shadow-lg':'bg-slate-800 text-slate-200'} p-4 rounded-2xl text-sm max-w-[90%] prose shadow-sm">${text}</div>`;
+      div.className = `flex ${role==='user'?'justify-end':'justify-start'} w-full`;
+      div.innerHTML = `<div class="${role==='user'?'bg-blue-600 text-white':'bg-slate-800 text-slate-200'} p-4 rounded-2xl text-sm max-w-[85%] shadow-sm">${text}</div>`;
       box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
       return div.firstChild;
     }
+    
     function closeTool() { document.getElementById('tool-drawer').classList.remove('drawer-open'); }
   </script>
 </body>
