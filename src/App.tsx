@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, Mic, MicOff, Smartphone, Wind, RotateCcw } from 'lucide-react';
 
-// --- THE WIDGETS (Lego Bricks) ---
+// --- THE WIDGETS ---
 
 const CoinFlipper = () => {
-  const [result, setResult] = useState<string | null>(null);
+  const [result, setResult] = useState(null);
   const [flipping, setFlipping] = useState(false);
 
   const flip = () => {
@@ -47,25 +47,22 @@ const FocusTimer = () => {
 // --- THE MAIN APP ---
 
 function App() {
-  const [messages, setMessages] = useState<Array<{type: 'text' | 'component', content: any, sender: 'user' | 'ai'}>>([
+  // Logic: Initialize state without TypeScript generics
+  const [messages, setMessages] = useState([
     { type: 'text', content: 'Voice Module Online. Tap the Mic and say "Flip Coin".', sender: 'ai' }
   ]);
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef(null);
 
-  // Auto-scroll to bottom
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-  // HANDLE SEND
-  const handleSend = async (text: string) => {
+  const handleSend = async (text) => {
     if (!text.trim()) return;
 
-    // 1. Add User Message
     setMessages(prev => [...prev, { type: 'text', content: text, sender: 'user' }]);
     setInput('');
 
-    // 2. MOCK AI BRAIN (The Logic)
     setTimeout(() => {
       const lower = text.toLowerCase();
       
@@ -81,7 +78,6 @@ function App() {
     }, 600);
   };
 
-  // VOICE RECOGNITION (The Iron Man Part)
   const toggleMic = () => {
     if (isListening) {
       stopListening();
@@ -91,8 +87,10 @@ function App() {
   };
 
   const startListening = () => {
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+    // Check for browser support safely
+    const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
+    
+    if (SpeechRecognition) {
       const recognition = new SpeechRecognition();
       recognition.continuous = false;
       recognition.interimResults = false;
@@ -100,10 +98,10 @@ function App() {
 
       recognition.onstart = () => setIsListening(true);
       
-      recognition.onresult = (event: any) => {
+      recognition.onresult = (event) => {
         const transcript = event.results[0][0].transcript;
         setInput(transcript);
-        handleSend(transcript); // Auto-send when speaking stops
+        handleSend(transcript); 
       };
 
       recognition.onend = () => setIsListening(false);
@@ -115,12 +113,10 @@ function App() {
 
   const stopListening = () => {
     setIsListening(false);
-    // Logic to manually stop if needed
   };
 
   return (
     <div className="flex flex-col h-[100dvh] bg-slate-950 text-slate-100 font-sans">
-      {/* HEADER */}
       <div className="p-4 border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-10 flex justify-between items-center">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
@@ -129,11 +125,9 @@ function App() {
         <Smartphone size={18} className="text-slate-600" />
       </div>
 
-      {/* STREAM */}
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
         {messages.map((msg, i) => (
           <div key={i} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-            
             {msg.type === 'text' ? (
               <div className={`max-w-[80%] p-3 rounded-2xl text-sm ${
                 msg.sender === 'user' 
@@ -143,22 +137,18 @@ function App() {
                 {msg.content}
               </div>
             ) : (
-              // RENDER COMPONENT
               <div className="w-full">
                 {msg.content === 'coin' && <CoinFlipper />}
                 {msg.content === 'focus' && <FocusTimer />}
               </div>
             )}
-            
           </div>
         ))}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* INPUT BAR */}
       <div className="p-4 bg-slate-900 border-t border-slate-800">
         <div className="flex gap-2 max-w-lg mx-auto">
-          
           <button 
             onClick={toggleMic}
             className={`p-4 rounded-full transition-all duration-200 ${
