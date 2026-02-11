@@ -3,56 +3,56 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Liquid OS (v4.2 Mobile)</title>
+  <title>Liquid OS (v4.3 Stable)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body { font-family: sans-serif; background-color: #0f172a; color: white; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
-    #chat-history { flex: 1 1 auto; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    /* Natural Scrolling Architecture */
+    body { font-family: sans-serif; background-color: #0f172a; color: white; margin: 0; display: flex; flex-direction: column; min-height: 100vh; }
+    #chat-history { flex: 1; padding: 1rem; padding-bottom: 120px; /* Space for sticky input */ }
     .prose p { margin-bottom: 0.8em; }
-    #tool-drawer { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+    #tool-drawer { transition: transform 0.4s ease-out; z-index: 50; }
     .drawer-open { transform: translateY(0) !important; }
+    input:focus { font-size: 16px !important; /* Prevents iOS zoom */ }
   </style>
 </head>
 <body>
 
-  <header class="h-14 border-b border-slate-800 flex justify-between items-center px-4 bg-slate-900 shrink-0">
-    <h1 class="font-bold text-sm tracking-widest text-blue-400">LIQUID AGENT v4.2</h1>
+  <header class="sticky top-0 h-14 border-b border-slate-800 flex justify-between items-center px-4 bg-slate-900/90 backdrop-blur-md z-40">
+    <h1 class="font-bold text-sm tracking-widest text-blue-400">LIQUID AGENT v4.3</h1>
     <button onclick="resetSystem()" class="text-[10px] text-red-500 font-bold uppercase">Reset</button>
   </header>
 
-  <main id="chat-history" class="p-4 space-y-4">
+  <main id="chat-history" class="space-y-4">
     <div class="flex justify-start">
       <div class="bg-slate-800 p-4 rounded-2xl text-sm max-w-[90%] border border-slate-700/50">
-        Mobile interface optimized. Ready for your goal.
+        System Stable. I've switched to a natural scroll layout to prevent keyboard glitches.
       </div>
     </div>
   </main>
 
-  <div id="tool-drawer" class="fixed inset-x-0 bottom-0 bg-slate-900 border-t border-slate-700 p-5 rounded-t-[2rem] shadow-2xl max-h-[80vh] overflow-y-auto z-40 transform translate-y-full">
+  <div id="tool-drawer" class="fixed inset-x-0 bottom-0 bg-slate-900 border-t border-slate-700 p-6 rounded-t-[2.5rem] shadow-2xl max-h-[85vh] overflow-y-auto transform translate-y-full">
     <div class="flex justify-between items-center mb-6">
       <div class="w-12 h-1.5 bg-slate-700 rounded-full absolute top-3 left-1/2 -translate-x-1/2"></div>
-      <span class="text-[10px] font-black text-slate-500 uppercase mt-2">Active Interface</span>
-      <button onclick="closeTool()" class="text-slate-500 p-2 text-xl">✕</button>
+      <button onclick="closeTool()" class="ml-auto text-slate-500 p-2 text-xl font-bold">✕</button>
     </div>
     <div id="tool-content" class="flex flex-col gap-4"></div>
   </div>
 
-  <footer class="p-4 bg-slate-950 border-t border-slate-800 shrink-0">
-    <div class="flex gap-2 max-w-4xl mx-auto">
+  <footer class="sticky bottom-0 p-4 bg-slate-950/95 backdrop-blur-md border-t border-slate-800">
+    <div class="flex gap-2 max-w-4xl mx-auto items-center">
       <input id="user-input" type="text" placeholder="Explain your goal..." 
-             class="flex-1 bg-slate-900 p-4 rounded-2xl outline-none text-white border border-slate-800 focus:border-blue-500" 
-             onkeydown="if(event.key==='Enter') sendMessage()">
-      <button onclick="sendMessage()" id="send-btn" class="bg-blue-600 w-14 h-14 rounded-2xl font-bold flex items-center justify-center shadow-lg active:scale-90 transition">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+             class="flex-1 bg-slate-900 p-4 rounded-2xl outline-none text-white border border-slate-800 focus:border-blue-500 text-[16px]">
+      <button onclick="sendMessage()" id="send-btn" class="bg-blue-600 w-12 h-12 rounded-xl font-bold flex items-center justify-center shadow-lg active:scale-90 transition">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
       </button>
     </div>
   </footer>
 
-  <div id="setup-screen" class="hidden fixed inset-0 bg-slate-950 flex items-center justify-center z-50 p-6 text-center">
-    <div class="bg-slate-900 p-8 rounded-3xl w-full max-w-sm border border-slate-800">
-      <h2 class="text-xl font-bold mb-6 text-blue-400">System Locked</h2>
+  <div id="setup-screen" class="hidden fixed inset-0 bg-slate-950 flex items-center justify-center z-[60] p-6">
+    <div class="bg-slate-900 p-8 rounded-3xl w-full max-w-sm border border-slate-800 text-center">
+      <h2 class="text-xl font-bold mb-6 text-blue-400">Initialize Agent</h2>
       <input id="api-key" type="password" placeholder="Gemini API Key" class="w-full bg-slate-800 border border-slate-700 p-4 rounded-xl mb-4 text-white outline-none">
-      <button onclick="saveConfig()" class="w-full bg-blue-600 p-4 rounded-xl font-bold">Initialize</button>
+      <button onclick="saveConfig()" class="w-full bg-blue-600 p-4 rounded-xl font-bold">Launch</button>
     </div>
   </div>
 
@@ -61,8 +61,8 @@
     let STATE = {}; 
     let CURRENT_LAYOUT = [];
 
-    const PROMPT = `You are Liquid OS. 1. Reason in text. 2. Append tool JSON in \`\`\`json blocks.
-    Format: {"state":{}, "layout":[]}. Atoms: hero, button, input, list_view. Logic: add, subtract, push, set.`;
+    const PROMPT = `Reason first in text, then append tool JSON in \`\`\`json blocks. 
+    Format: {"state":{}, "layout":[]}. Atoms: hero, button, input, list_view.`;
 
     window.onload = () => {
       const key = localStorage.getItem("liquid_os_key");
@@ -72,11 +72,9 @@
 
     function saveConfig() {
       const key = document.getElementById('api-key').value.trim();
-      localStorage.setItem("liquid_os_key", key); CONFIG.key = key;
-      location.reload();
+      localStorage.setItem("liquid_os_key", key); location.reload();
     }
-
-    function resetSystem() { if(confirm("Wipe all?")) { localStorage.clear(); location.reload(); } }
+    function resetSystem() { if(confirm("Reset?")) { localStorage.clear(); location.reload(); } }
 
     async function sendMessage() {
       const input = document.getElementById('user-input');
@@ -85,16 +83,15 @@
 
       appendChat('user', text);
       input.value = '';
-      input.blur(); // Close keyboard on mobile to prevent layout bugs
       
-      const loader = appendChat('ai', '<span class="animate-pulse">Designing Solution...</span>');
+      const loader = appendChat('ai', '<span class="animate-pulse">Thinking...</span>');
+      window.scrollTo(0, document.body.scrollHeight);
 
       try {
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${CONFIG.key}`, {
           method: "POST", headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: PROMPT + "\nState: " + JSON.stringify(STATE) + "\nGoal: " + text }] }] })
+          body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: PROMPT + "\nState: " + JSON.stringify(STATE) + "\nUser: " + text }] }] })
         });
-        
         const data = await res.json();
         loader.parentElement.parentElement.remove();
 
@@ -115,6 +112,7 @@
           renderTool();
           document.getElementById('tool-drawer').classList.add('drawer-open');
         }
+        window.scrollTo(0, document.body.scrollHeight);
       } catch (e) { appendChat('ai', "Error: " + e.message); }
     }
 
@@ -129,12 +127,12 @@
         }
 
         if (atom.type === 'hero') {
-          const d = document.createElement('div'); d.className = "bg-slate-800 p-6 rounded-3xl text-center border border-slate-700";
-          d.innerHTML = `<h2 class="text-[10px] uppercase font-black text-slate-500 mb-2">${props.label||'Status'}</h2><div class="text-5xl font-black">${val}</div>`;
+          const d = document.createElement('div'); d.className = "bg-slate-800 p-8 rounded-3xl text-center border border-slate-700 shadow-xl";
+          d.innerHTML = `<h2 class="text-[10px] uppercase font-black text-slate-500 mb-2">${props.label||'Status'}</h2><div class="text-6xl font-black">${val}</div>`;
           c.appendChild(d);
         }
         if (atom.type === 'button') {
-          const b = document.createElement('button'); b.className = "w-full py-4 rounded-2xl font-bold bg-blue-600 text-sm uppercase tracking-widest";
+          const b = document.createElement('button'); b.className = "w-full py-5 rounded-2xl font-black bg-blue-600 uppercase tracking-widest text-xs shadow-lg";
           b.innerText = props.label || 'Action';
           b.onclick = () => {
             const s = atom.script || props.script;
@@ -151,9 +149,8 @@
       const box = document.getElementById('chat-history');
       const div = document.createElement('div');
       div.className = `flex ${role==='user'?'justify-end':'justify-start'}`;
-      div.innerHTML = `<div class="${role==='user'?'bg-blue-600':'bg-slate-800'} p-4 rounded-2xl text-sm max-w-[90%] prose">${text}</div>`;
+      div.innerHTML = `<div class="${role==='user'?'bg-blue-600 text-white shadow-lg':'bg-slate-800 text-slate-200'} p-4 rounded-2xl text-sm max-w-[90%] prose shadow-sm">${text}</div>`;
       box.appendChild(div);
-      box.scrollTop = box.scrollHeight;
       return div.firstChild;
     }
     function closeTool() { document.getElementById('tool-drawer').classList.remove('drawer-open'); }
