@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 // ==========================================
-// 1. THE ATOMIC ENGINE (UI LAYER)
+// 1. THE BULLETPROOF ENGINE (v6.2)
 // ==========================================
 const AtomRender = ({ layout, onAction, data }: { layout: any[], onAction: any, data: any }) => {
+  // 🛡️ CRASH GUARD: If layout isn't a list, render nothing.
   if (!layout || !Array.isArray(layout)) return null;
 
   return (
@@ -11,18 +12,23 @@ const AtomRender = ({ layout, onAction, data }: { layout: any[], onAction: any, 
       {layout.map((atom, index) => {
         if (!atom) return null;
         const props = atom.props || {};
-        
-        // 🔮 SMART BINDING v6.1 (Regex)
-        // Finds {variable} anywhere in the string and replaces it with data
+
+        // 🔮 SAFER DATA BINDING (v6.2 Fix)
         let displayValue = props.value;
+        
+        // If the value is "Start", keep it. If it's "{count}", replace it.
         if (typeof displayValue === 'string') {
           displayValue = displayValue.replace(/\{([^}]+)\}/g, (match, key) => {
-            return data[key] !== undefined ? data[key] : match;
+            const val = data[key];
+            if (val === undefined) return match;
+            
+            // 🛡️ OBJECT SANITIZER: Prevent "Objects are not valid as a React child" crash
+            if (typeof val === 'object') return JSON.stringify(val);
+            return String(val); 
           });
         }
 
-        // 🛡️ SCRIPT FINDER
-        // Sometimes AI puts script in 'script', sometimes in 'action', sometimes in 'props'
+        // 🛡️ ROBUST SCRIPT FINDER
         const script = atom.script || atom.action || props.script || props.action;
 
         switch (atom.type) {
@@ -30,7 +36,7 @@ const AtomRender = ({ layout, onAction, data }: { layout: any[], onAction: any, 
             return (
               <div key={index} className="bg-slate-800 p-6 rounded-2xl text-center border border-slate-700 shadow-lg">
                 <h2 className="text-slate-400 text-xs uppercase tracking-wider font-bold mb-2">{props.label}</h2>
-                <div className="text-5xl font-black text-white" style={{ color: props.color || '#fff' }}>
+                <div className="text-5xl font-black text-white truncate" style={{ color: props.color || '#fff' }}>
                   {displayValue}
                 </div>
               </div>
@@ -39,7 +45,7 @@ const AtomRender = ({ layout, onAction, data }: { layout: any[], onAction: any, 
             return (
               <button
                 key={index}
-                onClick={() => onAction(script)} 
+                onClick={() => onAction(script)}
                 className="w-full py-4 px-6 rounded-xl font-bold text-white transform transition active:scale-95 shadow-lg flex items-center justify-center gap-2"
                 style={{ backgroundColor: props.color || '#3b82f6' }}
               >
@@ -70,11 +76,11 @@ const AtomRender = ({ layout, onAction, data }: { layout: any[], onAction: any, 
 };
 
 // ==========================================
-// 2. THE SYSTEM CONFIG
+// 2. SYSTEM CONFIG
 // ==========================================
 const SYSTEM_CONFIG = {
   modelName: "gemini-2.5-flash",
-  storageKey: "liquid_os_v6_1_smart", // New Key for fresh start
+  storageKey: "liquid_os_v6_2_safe", // New Key -> Fresh Start
   apiVersion: "v1beta"
 };
 
@@ -102,16 +108,16 @@ Example:
 `;
 
 // ==========================================
-// 3. THE APP
+// 3. MAIN APP
 // ==========================================
 export default function App() {
   const [config, setConfig] = useState<any>(null);
   const [setupMode, setSetupMode] = useState(true);
-  const [history, setHistory] = useState<any[]>([{ role: 'ai', text: 'System Online.' }]);
+  const [history, setHistory] = useState<any[]>([{ role: 'ai', text: 'Safe Mode Online.' }]);
   
   const [activeTool, setActiveTool] = useState<any[] | null>(null);
   const [toolData, setToolData] = useState<any>({}); 
-  const [debugJson, setDebugJson] = useState<string>(""); // For debugging
+  const [debugJson, setDebugJson] = useState<string>(""); 
   
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -169,7 +175,7 @@ export default function App() {
       
       const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
       const cleanJson = aiText.replace(/```json/g, '').replace(/```/g, '').trim();
-      setDebugJson(cleanJson); // Save for inspection
+      setDebugJson(cleanJson);
 
       let payload;
       try {
@@ -192,23 +198,23 @@ export default function App() {
     }
   };
 
-  // ⚡ UNIVERSAL LOGIC HANDLER
+  // ⚡ LOGIC HANDLER
   const handleScript = (script: any) => {
     if (!script) return alert("Button has no script!");
     
-    // Support both styles: {cmd: "add"} OR "increment" string
+    // 1. Text Logic (e.g. "increment")
     if (typeof script === 'string') {
-       if (script.includes('add') || script.includes('increment')) {
-          // Try to find the first number key in data
+       if (script.toLowerCase().includes('add') || script.toLowerCase().includes('increment')) {
           const key = Object.keys(toolData)[0];
           if(key) {
              setToolData((p: any) => ({ ...p, [key]: Number(p[key]) + 1 }));
              return;
           }
        }
-       return alert("Unknown text action: " + script);
+       return alert("Unknown action: " + script);
     }
 
+    // 2. JSON Logic (e.g. {cmd: "add"})
     const { cmd, key, val } = script;
     if (!key) return alert("Script missing 'key'");
 
@@ -225,10 +231,11 @@ export default function App() {
     });
   };
 
+  // 🖥️ RENDER: SETUP
   if (setupMode) return (
     <div className="h-screen bg-slate-950 text-white flex items-center justify-center p-6">
       <form onSubmit={handleSave} className="bg-slate-900 p-6 rounded-xl w-full max-w-sm border border-slate-800">
-        <h1 className="text-xl font-bold mb-4">Liquid OS <span className="text-blue-500">v6.1</span></h1>
+        <h1 className="text-xl font-bold mb-4">Liquid OS <span className="text-blue-500">SafeMode</span></h1>
         <input name="userName" placeholder="Name" className="w-full bg-slate-800 border border-slate-700 p-2 rounded mb-2" />
         <input name="geminiKey" type="password" placeholder="Gemini Key" required className="w-full bg-slate-800 border border-slate-700 p-2 rounded mb-4" />
         <button className="w-full bg-blue-600 p-3 rounded font-bold">Start System</button>
@@ -236,11 +243,12 @@ export default function App() {
     </div>
   );
 
+  // 🖥️ RENDER: MAIN
   return (
     <div className="h-screen bg-slate-950 text-white flex flex-col font-sans overflow-hidden">
       <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-        <h1 className="font-bold">LIQUID OS <span className="text-xs text-green-400">v6.1</span></h1>
-        <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="text-xs text-red-500">Reset</button>
+        <h1 className="font-bold">LIQUID OS <span className="text-xs text-green-400">v6.2</span></h1>
+        <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="text-xs text-red-500">Factory Reset</button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 pb-40 space-y-4">
@@ -263,7 +271,6 @@ export default function App() {
           </div>
           <AtomRender layout={activeTool} onAction={handleScript} data={toolData} />
           
-          {/* DEBUG PANEL: Helps you see what AI actually wrote */}
           <details className="mt-8 pt-4 border-t border-slate-800">
             <summary className="text-xs text-slate-600 cursor-pointer">Debug JSON</summary>
             <pre className="text-[10px] text-slate-500 mt-2 overflow-x-auto">{debugJson}</pre>
