@@ -5,7 +5,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // --- CONFIGURATION ---
 // 1. Paste your Gemini API Key here
-const GEMINI_API_KEY = "AIzaSyDPemXkjb0QN-xfgN6MzVC4IeSI9kAgwlM"; 
+const GEMINI_API_KEY = "AIzaSyAhhB16FzCUJtjfEmB7llffOgdavtEOQMU"; 
 
 // 2. Your Firebase Config (Keep this as is)
 const firebaseConfig = {
