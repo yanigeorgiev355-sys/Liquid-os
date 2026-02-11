@@ -15,7 +15,7 @@ const firebaseConfig = {
   appId: "1:1091307817494:web:437b4013da4ad0bdc60337"
 };
 
-// Initialize Services with Error Catching
+// Initialize Services
 let db;
 let genAI;
 try {
@@ -23,7 +23,7 @@ try {
   db = getFirestore(app);
   genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 } catch (e) {
-  console.error("Firebase/AI Init Error", e);
+  console.error("Init Error", e);
 }
 
 // --- STYLES ---
@@ -32,6 +32,9 @@ const styleTag = `
   @keyframes breathe { 0% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.3); opacity: 1; } 100% { transform: scale(1); opacity: 0.5; } }
   .animate-spin-fast { animation: spin 1s ease-out forwards; }
   .animate-breathe { animation: breathe 4s infinite ease-in-out; }
+  .mic-button { transition: all 0.2s; }
+  .mic-button:active { transform: scale(0.9); }
+  .mic-active { box-shadow: 0 0 15px #ef4444; background: #ef4444 !important; }
 `;
 
 // --- WIDGETS ---
@@ -59,11 +62,13 @@ const StatsBoard = () => {
   const [stats, setStats] = useState({ heads: 0, tails: 0, total: 0 });
   useEffect(() => {
     const fetchStats = async () => {
-      const q = query(collection(db, "history"), orderBy("timestamp", "desc"), limit(50));
-      const snap = await getDocs(q);
-      let h = 0; let t = 0;
-      snap.forEach((doc) => { const d = doc.data(); if (d.outcome === 'HEADS') h++; else t++; });
-      setStats({ heads: h, tails: t, total: h + t });
+      try {
+        const q = query(collection(db, "history"), orderBy("timestamp", "desc"), limit(50));
+        const snap = await getDocs(q);
+        let h = 0; let t = 0;
+        snap.forEach((doc) => { const d = doc.data(); if (d.outcome === 'HEADS') h++; else t++; });
+        setStats({ heads: h, tails: t, total: h + t });
+      } catch (e) { console.log(e); }
     };
     fetchStats();
   }, []);
@@ -81,9 +86,10 @@ const StatsBoard = () => {
 
 // --- MAIN APP ---
 function App() {
-  const [messages, setMessages] = useState([{ type: 'text', content: 'Liquid OS v1.1. Say "Flip a coin" or "Stats".', sender: 'ai' }]);
+  const [messages, setMessages] = useState([{ type: 'text', content: 'Online. Tap 🎤 and say "I can\'t decide".', sender: 'ai' }]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef(null);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
@@ -95,8 +101,11 @@ function App() {
     setLoading(true);
 
     try {
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-      const prompt = `You are LiquidOS. The user said: "${text}". Reply ONLY in JSON format: {"tool": "coin"|"stats"|"text", "reply": "short message"}`;
+      // FIX: Changed model to 'gemini-pro' which is universally available
+      const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+      const prompt = `You are LiquidOS. The user said: "${text}". 
+      Reply ONLY in JSON format: {"tool": "coin"|"stats"|"text", "reply": "short message"}. 
+      If they seem indecisive, use "coin". If they ask for history, use "stats".`;
       
       const result = await model.generateContent(prompt);
       const response = await result.response;
@@ -109,16 +118,40 @@ function App() {
         setMessages(prev => [...prev, { type: 'component', content: data.tool, sender: 'ai' }]);
       }
     } catch (e) {
-      setMessages(prev => [...prev, { type: 'text', content: 'Error: ' + e.message, sender: 'ai' }]);
+      setMessages(prev => [...prev, { type: 'text', content: 'AI Error: ' + e.message, sender: 'ai' }]);
     } finally {
       setLoading(false);
     }
   };
 
+  // --- VOICE LOGIC ---
+  const toggleMic = () => {
+    if (isListening) { setIsListening(false); return; }
+    
+    const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
+    if (!SpeechRecognition) { alert("Use Chrome/Safari"); return; }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.continuous = false;
+    
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onresult = (e) => {
+      const text = e.results[0][0].transcript;
+      setInput(text);
+      handleSend(text);
+    };
+    recognition.start();
+  };
+
   return (
     <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', background: '#0f172a', color: 'white', fontFamily: 'sans-serif' }}>
       <style>{styleTag}</style>
-      <div style={{ padding: '15px', borderBottom: '1px solid #1e293b', textAlign: 'center', fontWeight: 'bold' }}>LIQUID BRAIN</div>
+      <div style={{ padding: '15px', borderBottom: '1px solid #1e293b', textAlign: 'center', fontWeight: 'bold', display:'flex', justifyContent:'space-between' }}>
+        <span>LIQUID OS</span>
+        {loading && <span className="animate-spin-fast">🧠</span>}
+      </div>
       
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
         {messages.map((msg, i) => (
@@ -133,13 +166,15 @@ function App() {
             )}
           </div>
         ))}
-        {loading && <div style={{color: '#64748b', fontSize: '0.8rem'}}>Thinking...</div>}
         <div ref={messagesEndRef} />
       </div>
 
       <div style={{ padding: '15px', background: '#0f172a', borderTop: '1px solid #1e293b' }}>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend(input)} placeholder="Talk to the OS..." style={{ flex: 1, background: '#1e293b', border: 'none', borderRadius: '20px', padding: '12px 20px', color: 'white', outline: 'none' }} />
+          <button onClick={toggleMic} className={`mic-button ${isListening ? 'mic-active' : ''}`} style={{ width: '45px', height: '45px', borderRadius: '50%', background: '#1e293b', border: 'none', color: 'white', fontSize: '1.2rem' }}>
+            {isListening ? '🛑' : '🎤'}
+          </button>
+          <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend(input)} placeholder="Speak..." style={{ flex: 1, background: '#1e293b', border: 'none', borderRadius: '20px', padding: '12px 20px', color: 'white', outline: 'none' }} />
           <button onClick={() => handleSend(input)} style={{ width: '45px', height: '45px', borderRadius: '50%', background: '#7c3aed', border: 'none', color: 'white' }}>➡️</button>
         </div>
       </div>
