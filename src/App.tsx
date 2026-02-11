@@ -12,12 +12,18 @@ const AtomRender = ({ layout, onAction, data }: { layout: any[], onAction: any, 
         if (!atom) return null;
         const props = atom.props || {};
         
-        // 🔮 DATA BINDING: Replace "{var_name}" with actual data
+        // 🔮 SMART BINDING v6.1 (Regex)
+        // Finds {variable} anywhere in the string and replaces it with data
         let displayValue = props.value;
-        if (typeof displayValue === 'string' && displayValue.startsWith('{') && displayValue.endsWith('}')) {
-          const varName = displayValue.slice(1, -1); // remove { }
-          displayValue = data[varName] !== undefined ? data[varName] : '...';
+        if (typeof displayValue === 'string') {
+          displayValue = displayValue.replace(/\{([^}]+)\}/g, (match, key) => {
+            return data[key] !== undefined ? data[key] : match;
+          });
         }
+
+        // 🛡️ SCRIPT FINDER
+        // Sometimes AI puts script in 'script', sometimes in 'action', sometimes in 'props'
+        const script = atom.script || atom.action || props.script || props.action;
 
         switch (atom.type) {
           case 'hero':
@@ -33,8 +39,7 @@ const AtomRender = ({ layout, onAction, data }: { layout: any[], onAction: any, 
             return (
               <button
                 key={index}
-                // Pass the ENTIRE script to the handler
-                onClick={() => onAction(atom.script)} 
+                onClick={() => onAction(script)} 
                 className="w-full py-4 px-6 rounded-xl font-bold text-white transform transition active:scale-95 shadow-lg flex items-center justify-center gap-2"
                 style={{ backgroundColor: props.color || '#3b82f6' }}
               >
@@ -69,7 +74,7 @@ const AtomRender = ({ layout, onAction, data }: { layout: any[], onAction: any, 
 // ==========================================
 const SYSTEM_CONFIG = {
   modelName: "gemini-2.5-flash",
-  storageKey: "liquid_os_v6_universal", // New Key for Universal Logic
+  storageKey: "liquid_os_v6_1_smart", // New Key for fresh start
   apiVersion: "v1beta"
 };
 
@@ -78,42 +83,40 @@ You are Liquid OS.
 Reply with JSON only.
 
 Logic Protocol:
-1. "state": Define the initial variables (e.g., {"score": 0, "money": 100}).
-2. "script": For buttons, define HOW to change the state.
-   - {"cmd": "add", "key": "score", "val": 1}
-   - {"cmd": "subtract", "key": "money", "val": 50}
-   - {"cmd": "set", "key": "status", "val": "Active"}
+1. "state": Define initial variables (e.g., {"balance": 1000}).
+2. "script": For buttons, define the logic.
+   - {"cmd": "add", "key": "balance", "val": 100}
+   - {"cmd": "subtract", "key": "balance", "val": 50}
 
-Example Output:
+Example:
 {
-  "chat": "I built a scoreboard.",
+  "chat": "Bank account created.",
   "tool": {
-    "state": { "home": 0, "away": 0 },
+    "state": { "balance": 1000 },
     "layout": [
-      { "type": "hero", "props": { "label": "Home", "value": "{home}" } },
-      { "type": "button", "props": { "label": "Goal!", "color": "blue" }, "script": { "cmd": "add", "key": "home", "val": 1 } }
+      { "type": "hero", "props": { "label": "Balance", "value": "${balance}" } },
+      { "type": "button", "props": { "label": "Deposit $100" }, "script": { "cmd": "add", "key": "balance", "val": 100 } }
     ]
   }
 }
 `;
 
 // ==========================================
-// 3. THE APP (BRAIN + UNIVERSAL LOGIC)
+// 3. THE APP
 // ==========================================
 export default function App() {
   const [config, setConfig] = useState<any>(null);
   const [setupMode, setSetupMode] = useState(true);
-  const [history, setHistory] = useState<any[]>([{ role: 'ai', text: 'Universal Logic Engine Online.' }]);
+  const [history, setHistory] = useState<any[]>([{ role: 'ai', text: 'System Online.' }]);
   
-  // 🧠 UNIVERSAL STATE (Can hold water, money, score, anything)
   const [activeTool, setActiveTool] = useState<any[] | null>(null);
   const [toolData, setToolData] = useState<any>({}); 
+  const [debugJson, setDebugJson] = useState<string>(""); // For debugging
   
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // 🚀 BOOT
   useEffect(() => {
     try {
       const saved = localStorage.getItem(SYSTEM_CONFIG.storageKey);
@@ -166,14 +169,19 @@ export default function App() {
       
       const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
       const cleanJson = aiText.replace(/```json/g, '').replace(/```/g, '').trim();
-      const payload = JSON.parse(cleanJson);
+      setDebugJson(cleanJson); // Save for inspection
+
+      let payload;
+      try {
+        payload = JSON.parse(cleanJson);
+      } catch (e) {
+        throw new Error("Invalid JSON from AI");
+      }
 
       setHistory(prev => [...prev, { role: 'ai', text: payload.chat || "Done." }]);
       
-      // 🛡️ MOUNT TOOL + INITIAL STATE
       if (payload.tool && Array.isArray(payload.tool.layout)) {
         setActiveTool(payload.tool.layout);
-        // Initialize the tool's specific memory (e.g., { water: 0 } or { bank: 1000 })
         setToolData(payload.tool.state || {});
       }
 
@@ -184,21 +192,34 @@ export default function App() {
     }
   };
 
-  // ⚡ UNIVERSAL LOGIC HANDLER (The "Interpreter")
-  // This is the code that replaces all the "if water / if coffee" checks.
+  // ⚡ UNIVERSAL LOGIC HANDLER
   const handleScript = (script: any) => {
-    if (!script) return alert("No script attached to this button.");
+    if (!script) return alert("Button has no script!");
     
+    // Support both styles: {cmd: "add"} OR "increment" string
+    if (typeof script === 'string') {
+       if (script.includes('add') || script.includes('increment')) {
+          // Try to find the first number key in data
+          const key = Object.keys(toolData)[0];
+          if(key) {
+             setToolData((p: any) => ({ ...p, [key]: Number(p[key]) + 1 }));
+             return;
+          }
+       }
+       return alert("Unknown text action: " + script);
+    }
+
     const { cmd, key, val } = script;
+    if (!key) return alert("Script missing 'key'");
 
     setToolData((prev: any) => {
       const newState = { ...prev };
-      const currentVal = newState[key] || 0;
+      const currentVal = Number(newState[key] || 0);
+      const changeVal = Number(val);
 
-      // The 3 Universal Commands
-      if (cmd === 'add') newState[key] = Number(currentVal) + Number(val);
-      if (cmd === 'subtract') newState[key] = Number(currentVal) - Number(val);
-      if (cmd === 'set') newState[key] = val;
+      if (cmd === 'add') newState[key] = currentVal + changeVal;
+      if (cmd === 'subtract') newState[key] = currentVal - changeVal;
+      if (cmd === 'set') newState[key] = changeVal;
 
       return newState;
     });
@@ -207,7 +228,7 @@ export default function App() {
   if (setupMode) return (
     <div className="h-screen bg-slate-950 text-white flex items-center justify-center p-6">
       <form onSubmit={handleSave} className="bg-slate-900 p-6 rounded-xl w-full max-w-sm border border-slate-800">
-        <h1 className="text-xl font-bold mb-4">Liquid OS <span className="text-blue-500">Universal</span></h1>
+        <h1 className="text-xl font-bold mb-4">Liquid OS <span className="text-blue-500">v6.1</span></h1>
         <input name="userName" placeholder="Name" className="w-full bg-slate-800 border border-slate-700 p-2 rounded mb-2" />
         <input name="geminiKey" type="password" placeholder="Gemini Key" required className="w-full bg-slate-800 border border-slate-700 p-2 rounded mb-4" />
         <button className="w-full bg-blue-600 p-3 rounded font-bold">Start System</button>
@@ -218,7 +239,7 @@ export default function App() {
   return (
     <div className="h-screen bg-slate-950 text-white flex flex-col font-sans overflow-hidden">
       <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-        <h1 className="font-bold">LIQUID OS <span className="text-xs text-purple-400">v6.0</span></h1>
+        <h1 className="font-bold">LIQUID OS <span className="text-xs text-green-400">v6.1</span></h1>
         <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="text-xs text-red-500">Reset</button>
       </div>
 
@@ -235,13 +256,18 @@ export default function App() {
       </div>
 
       {activeTool && (
-        <div className="absolute bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-700 p-4 rounded-t-2xl shadow-2xl max-h-[50vh] overflow-y-auto z-10">
+        <div className="absolute bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-700 p-4 rounded-t-2xl shadow-2xl max-h-[60vh] overflow-y-auto z-10">
           <div className="flex justify-between mb-4">
             <span className="text-xs font-bold text-slate-500 uppercase">Active Tool</span>
             <button onClick={() => setActiveTool(null)} className="text-slate-500">✕</button>
           </div>
-          {/* We pass the 'toolData' (State) and 'handleScript' (Logic) to the renderer */}
           <AtomRender layout={activeTool} onAction={handleScript} data={toolData} />
+          
+          {/* DEBUG PANEL: Helps you see what AI actually wrote */}
+          <details className="mt-8 pt-4 border-t border-slate-800">
+            <summary className="text-xs text-slate-600 cursor-pointer">Debug JSON</summary>
+            <pre className="text-[10px] text-slate-500 mt-2 overflow-x-auto">{debugJson}</pre>
+          </details>
         </div>
       )}
 
