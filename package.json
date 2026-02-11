@@ -13,7 +13,7 @@
     "react-dom": "^18.2.0",
     "lucide-react": "latest",
     "firebase": "latest",
-    "@google/generative-ai": "^0.1.0"
+    "@google/generative-ai": "latest"
   },
   "devDependencies": {
     "@types/react": "^18.2.64",
