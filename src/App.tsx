@@ -1,27 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { initializeApp } from "firebase/app";
+import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit } from "firebase/firestore";
 
-// --- INTERNAL STYLES (The Paint) ---
-// We inject standard CSS for animations so we don't need Tailwind config
+// --- YOUR FIREBASE CONFIG (Pre-filled) ---
+const firebaseConfig = {
+  apiKey: "AIzaSyAo8-dWRi7Y6e7W4KqAp8dVc5rpPMDhelY",
+  authDomain: "liquid-os-5da31.firebaseapp.com",
+  projectId: "liquid-os-5da31",
+  storageBucket: "liquid-os-5da31.firebasestorage.app",
+  messagingSenderId: "1091307817494",
+  appId: "1:1091307817494:web:437b4013da4ad0bdc60337"
+};
+
+// Initialize Cloud Database
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// --- INTERNAL STYLES ---
 const styleTag = `
   @keyframes spin { 0% { transform: rotateY(0deg); } 100% { transform: rotateY(1800deg); } }
   @keyframes breathe { 0% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.5); opacity: 1; } 100% { transform: scale(1); opacity: 0.5; } }
-  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); } 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); } }
   .animate-spin-fast { animation: spin 1s ease-out forwards; }
   .animate-breathe { animation: breathe 4s infinite ease-in-out; }
-  .animate-pulse-ring { animation: pulse 2s infinite; }
 `;
-
-// --- DATABASE (The Memory) ---
-const DB = {
-  save: (key, data) => {
-    const current = DB.load(key) || [];
-    const updated = [...current, { ...data, timestamp: new Date().toISOString() }];
-    localStorage.setItem(key, JSON.stringify(updated));
-    return updated;
-  },
-  load: (key) => JSON.parse(localStorage.getItem(key)) || [],
-  clear: () => localStorage.clear()
-};
 
 // --- WIDGETS ---
 
@@ -29,14 +30,29 @@ const CoinFlipper = () => {
   const [result, setResult] = useState(null);
   const [flipping, setFlipping] = useState(false);
 
-  const flip = () => {
+  const flip = async () => {
     setFlipping(true);
     setResult(null);
+    
+    // 1. Calculate locally immediately (Speed)
+    const outcome = Math.random() > 0.5 ? 'HEADS' : 'TAILS';
+    
+    // 2. Save to Cloud (Async)
+    try {
+      await addDoc(collection(db, "history"), {
+        type: 'coin',
+        outcome: outcome,
+        timestamp: new Date().toISOString()
+      });
+      console.log("Saved to Cloud!");
+    } catch (e) {
+      console.error("Error adding document: ", e);
+    }
+
+    // 3. Show result
     setTimeout(() => {
-      const outcome = Math.random() > 0.5 ? 'HEADS' : 'TAILS';
       setResult(outcome);
       setFlipping(false);
-      DB.save('coin_history', { outcome });
     }, 1000);
   };
 
@@ -57,30 +73,47 @@ const CoinFlipper = () => {
   );
 };
 
-const FocusTimer = () => {
-  return (
-    <div style={{ background: '#1e293b', padding: '30px', borderRadius: '16px', border: '1px solid #334155', textAlign: 'center', color: 'white' }}>
-      <div className="animate-breathe" style={{ fontSize: '4rem', marginBottom: '20px' }}>💨</div>
-      <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: '0 0 5px 0' }}>Inhale</h2>
-      <p style={{ color: '#94a3b8', margin: 0 }}>Sync your breath.</p>
-    </div>
-  );
-};
-
 const StatsBoard = () => {
-  const history = DB.load('coin_history');
-  const heads = history.filter(h => h.outcome === 'HEADS').length;
-  const tails = history.filter(h => h.outcome === 'TAILS').length;
-  const total = heads + tails;
-  const headsPct = total ? (heads / total) * 100 : 0;
+  const [stats, setStats] = useState({ heads: 0, tails: 0, total: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        // Pull data from Google Cloud
+        const q = query(collection(db, "history"), orderBy("timestamp", "desc"), limit(50));
+        const querySnapshot = await getDocs(q);
+        
+        let h = 0; 
+        let t = 0;
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          if (data.type === 'coin') {
+            if (data.outcome === 'HEADS') h++;
+            if (data.outcome === 'TAILS') t++;
+          }
+        });
+        setStats({ heads: h, tails: t, total: h + t });
+      } catch (e) {
+        console.error("Error fetching stats:", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStats();
+  }, []);
+
+  if (loading) return <div style={{padding:'20px', textAlign:'center', color:'#94a3b8'}}>Downloading Cloud Data...</div>;
+
+  const headsPct = stats.total ? (stats.heads / stats.total) * 100 : 0;
 
   return (
     <div style={{ background: '#1e293b', padding: '20px', borderRadius: '16px', border: '1px solid #334155', color: 'white' }}>
-      <h3 style={{ margin: '0 0 15px 0', borderBottom: '1px solid #334155', paddingBottom: '10px' }}>📊 Your Analysis</h3>
+      <h3 style={{ margin: '0 0 15px 0', borderBottom: '1px solid #334155', paddingBottom: '10px' }}>☁️ Cloud Analysis</h3>
       
       <div style={{ marginBottom: '15px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '0.9rem' }}>
-          <span>Heads ({heads})</span>
+          <span>Heads ({stats.heads})</span>
           <span>{Math.round(headsPct)}%</span>
         </div>
         <div style={{ height: '8px', background: '#334155', borderRadius: '4px', overflow: 'hidden' }}>
@@ -90,7 +123,7 @@ const StatsBoard = () => {
 
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '0.9rem' }}>
-          <span>Tails ({tails})</span>
+          <span>Tails ({stats.tails})</span>
           <span>{Math.round(100 - headsPct)}%</span>
         </div>
         <div style={{ height: '8px', background: '#334155', borderRadius: '4px', overflow: 'hidden' }}>
@@ -105,7 +138,7 @@ const StatsBoard = () => {
 
 function App() {
   const [messages, setMessages] = useState([
-    { type: 'text', content: 'Systems Restored. Visuals Online.', sender: 'ai' }
+    { type: 'text', content: 'Liquid Cloud Online. Data is now permanent.', sender: 'ai' }
   ]);
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
@@ -123,14 +156,11 @@ function App() {
       if (lower.includes('flip') || lower.includes('coin')) {
         setMessages(prev => [...prev, { type: 'component', content: 'coin', sender: 'ai' }]);
       } 
-      else if (lower.includes('focus') || lower.includes('breathe')) {
-        setMessages(prev => [...prev, { type: 'component', content: 'focus', sender: 'ai' }]);
-      } 
       else if (lower.includes('stat') || lower.includes('analy')) {
         setMessages(prev => [...prev, { type: 'component', content: 'stats', sender: 'ai' }]);
       }
       else {
-        setMessages(prev => [...prev, { type: 'text', content: `Try "Flip Coin", "Focus", or "Stats".`, sender: 'ai' }]);
+        setMessages(prev => [...prev, { type: 'text', content: `Try "Flip Coin" or "Stats".`, sender: 'ai' }]);
       }
     }, 500);
   };
@@ -163,10 +193,10 @@ function App() {
       {/* HEADER */}
       <div style={{ padding: '15px', background: 'rgba(15, 23, 42, 0.9)', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div className="animate-pulse-ring" style={{ width: '10px', height: '10px', background: '#22c55e', borderRadius: '50%' }}></div>
-          <span style={{ fontWeight: 'bold', letterSpacing: '1px', fontSize: '0.9rem' }}>LIQUID OS v1.0</span>
+          <div className="animate-pulse" style={{ width: '10px', height: '10px', background: '#3b82f6', borderRadius: '50%' }}></div>
+          <span style={{ fontWeight: 'bold', letterSpacing: '1px', fontSize: '0.9rem' }}>LIQUID CLOUD</span>
         </div>
-        <button onClick={() => handleSend("Stats")} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer' }}>📊</button>
+        <button onClick={() => handleSend("Stats")} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer' }}>☁️</button>
       </div>
 
       {/* CHAT AREA */}
@@ -175,11 +205,7 @@ function App() {
           <div key={i} style={{ display: 'flex', justifyContent: msg.sender === 'user' ? 'flex-end' : 'flex-start' }}>
             {msg.type === 'text' ? (
               <div style={{ 
-                maxWidth: '80%', 
-                padding: '12px 16px', 
-                borderRadius: '16px', 
-                fontSize: '0.95rem', 
-                lineHeight: '1.5',
+                maxWidth: '80%', padding: '12px 16px', borderRadius: '16px', fontSize: '0.95rem', lineHeight: '1.5',
                 background: msg.sender === 'user' ? '#2563eb' : '#1e293b',
                 color: msg.sender === 'user' ? 'white' : '#e2e8f0',
                 borderBottomRightRadius: msg.sender === 'user' ? '4px' : '16px',
@@ -191,7 +217,6 @@ function App() {
               <div style={{ width: '100%' }}>
                 {msg.content === 'coin' && <CoinFlipper />}
                 {msg.content === 'stats' && <StatsBoard />}
-                {msg.content === 'focus' && <FocusTimer />}
               </div>
             )}
           </div>
@@ -202,12 +227,7 @@ function App() {
       {/* INPUT BAR */}
       <div style={{ padding: '15px', background: '#0f172a', borderTop: '1px solid #1e293b' }}>
         <div style={{ display: 'flex', gap: '10px', maxWidth: '500px', margin: '0 auto' }}>
-          <button onClick={toggleMic} style={{ 
-            width: '50px', height: '50px', borderRadius: '50%', border: 'none', 
-            background: isListening ? '#ef4444' : '#1e293b', 
-            color: 'white', fontSize: '1.2rem', transition: '0.2s',
-            boxShadow: isListening ? '0 0 15px rgba(239, 68, 68, 0.5)' : 'none'
-          }}>
+          <button onClick={toggleMic} style={{ width: '50px', height: '50px', borderRadius: '50%', border: 'none', background: isListening ? '#ef4444' : '#1e293b', color: 'white', fontSize: '1.2rem' }}>
             {isListening ? '🛑' : '🎤'}
           </button>
           
@@ -215,11 +235,8 @@ function App() {
             value={input} 
             onChange={(e) => setInput(e.target.value)} 
             onKeyDown={(e) => e.key === 'Enter' && handleSend(input)}
-            placeholder={isListening ? "Listening..." : "Type here..."} 
-            style={{ 
-              flex: 1, background: '#1e293b', border: '1px solid #334155', 
-              borderRadius: '25px', padding: '0 20px', color: 'white', fontSize: '1rem', outline: 'none' 
-            }} 
+            placeholder="Type here..." 
+            style={{ flex: 1, background: '#1e293b', border: '1px solid #334155', borderRadius: '25px', padding: '0 20px', color: 'white', fontSize: '1rem', outline: 'none' }} 
           />
           
           <button onClick={() => handleSend(input)} style={{ width: '50px', height: '50px', borderRadius: '50%', background: '#2563eb', border: 'none', color: 'white', fontSize: '1.2rem' }}>➡️</button>
