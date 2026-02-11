@@ -3,151 +3,146 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Liquid OS (v4.4 Stable)</title>
+  <title>Liquid OS (v6 A2UI-POC)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    /* 📱 MOBILE RESILIENCE ARCHITECTURE */
-    html, body { height: 100%; margin: 0; padding: 0; background-color: #0f172a; overflow: hidden; }
-    body { display: flex; flex-direction: column; font-family: sans-serif; }
-    
-    #chat-history { flex: 1; overflow-y: auto; padding: 1rem; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; gap: 1rem; }
-    #tool-drawer { position: fixed; bottom: 0; left: 0; right: 0; background: #1e293b; border-top: 1px solid #334155; border-radius: 2rem 2rem 0 0; transform: translateY(100%); transition: transform 0.3s ease; z-index: 40; padding: 1.5rem; max-height: 70%; overflow-y: auto; }
-    .drawer-open { transform: translateY(0) !important; }
-    
-    /* Input stays at the bottom of the visible area */
-    footer { padding: 1rem; background: #0f172a; border-top: 1px solid #1e293b; shrink-0; }
-    input { font-size: 16px !important; } /* Prevents iOS/Android Zoom */
+    body { font-family: sans-serif; background-color: #020617; color: white; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+    #chat-history { flex: 1; overflow-y: auto; padding: 1rem; -webkit-overflow-scrolling: touch; }
+    #tool-drawer { position: fixed; bottom: 0; left: 0; right: 0; background: #0f172a; border-top: 1px solid #1e293b; border-radius: 2.5rem 2.5rem 0 0; transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); z-index: 50; padding: 2rem; max-height: 80vh; overflow-y: auto; }
+    .drawer-open { transform: translateY(0) !important; box-shadow: 0 -20px 50px rgba(0,0,0,0.5); }
+    .prose p { margin-bottom: 0.5rem; }
   </style>
 </head>
 <body>
 
-  <header class="h-14 border-b border-slate-800 flex justify-between items-center px-4 bg-slate-900 shrink-0">
-    <h1 class="font-bold text-sm tracking-widest text-blue-400">LIQUID AGENT v4.4</h1>
-    <button onclick="resetSystem()" class="text-[10px] text-red-500 font-bold">RESET</button>
+  <header class="h-14 border-b border-slate-800 flex justify-between items-center px-6 bg-slate-900/50 backdrop-blur-md shrink-0">
+    <h1 class="font-black text-xs tracking-[0.3em] text-blue-500 uppercase">A2UI Protocol POC</h1>
+    <button onclick="resetSystem()" class="text-[10px] text-red-500 font-bold uppercase tracking-tighter">Reset</button>
   </header>
 
-  <main id="chat-history">
-    <div class="flex justify-start">
-      <div class="bg-slate-800 p-4 rounded-2xl text-sm max-w-[90%] border border-slate-700/50 text-slate-200">
-        System Stable. I have locked the layout to prevent jumping.
-      </div>
-    </div>
-  </main>
+  <main id="chat-history"></main>
 
   <div id="tool-drawer">
+    <div class="w-12 h-1 bg-slate-800 rounded-full absolute top-3 left-1/2 -translate-x-1/2"></div>
     <div class="flex justify-between items-center mb-6">
-      <div class="w-12 h-1 bg-slate-700 rounded-full absolute top-3 left-1/2 -translate-x-1/2"></div>
-      <span class="text-[10px] font-black text-slate-500 uppercase">Active Tool</span>
-      <button onclick="closeTool()" class="text-slate-500 text-xl font-bold p-2">✕</button>
+       <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">A2UI Surface v0.8</span>
+       <button onclick="closeTool()" class="text-slate-500 text-xl font-bold">✕</button>
     </div>
-    <div id="tool-content" class="flex flex-col gap-4"></div>
+    <div id="a2ui-surface" class="flex flex-col gap-4"></div>
   </div>
 
-  <footer>
+  <footer class="p-4 bg-slate-950/80 backdrop-blur-md border-t border-slate-800 shrink-0">
     <div class="flex gap-2 max-w-4xl mx-auto items-center">
-      <input id="user-input" type="text" placeholder="Explain your goal..." 
-             class="flex-1 bg-slate-800 p-4 rounded-2xl outline-none text-white border border-slate-700 focus:border-blue-500 shadow-inner">
-      <button onclick="sendMessage()" id="send-btn" class="bg-blue-600 w-12 h-12 rounded-xl flex items-center justify-center shadow-lg active:scale-95 transition">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+      <input id="user-input" type="text" placeholder="Design a business tool..." class="flex-1 bg-slate-900 p-4 rounded-2xl outline-none text-white border border-slate-800 focus:border-blue-500 text-[16px]">
+      <button onclick="sendMessage()" class="bg-blue-600 w-12 h-12 rounded-xl flex items-center justify-center shadow-lg active:scale-95">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
       </button>
     </div>
   </footer>
 
-  <div id="setup-screen" class="hidden fixed inset-0 bg-slate-950 flex items-center justify-center z-[50] p-6">
-    <div class="bg-slate-900 p-8 rounded-3xl w-full max-w-sm border border-slate-800 text-center">
-      <h2 class="text-xl font-bold mb-4 text-blue-400">Initialize</h2>
-      <input id="api-key" type="password" placeholder="Gemini API Key" class="w-full bg-slate-800 border border-slate-700 p-4 rounded-xl mb-4 text-white outline-none">
-      <button onclick="saveConfig()" class="w-full bg-blue-600 p-4 rounded-xl font-bold">Launch</button>
-    </div>
-  </div>
-
   <script>
-    let CONFIG = { key: null };
-    let STATE = {}; 
-    let CURRENT_LAYOUT = [];
+    let GEMINI_KEY = localStorage.getItem("liquid_os_key");
+    let DATA_MODEL = {}; // A2UI State
+    let CURRENT_COMPONENTS = [];
 
-    const PROMPT = `You are Liquid OS. Reason in text, then append tool JSON in \`\`\`json blocks. 
-    Format: {"state":{}, "layout":[]}. Atoms: hero, button, input, list_view.`;
-
-    window.onload = () => {
-      const key = localStorage.getItem("liquid_os_key");
-      if (key) { CONFIG.key = key; document.getElementById('setup-screen').classList.add('hidden'); }
-      else { document.getElementById('setup-screen').classList.remove('hidden'); }
-    };
-
-    function saveConfig() {
-      const key = document.getElementById('api-key').value.trim();
-      localStorage.setItem("liquid_os_key", key); location.reload();
-    }
+    // 🤖 THE A2UI BLUEPRINT
+    const A2UI_PROMPT = `You are a Generative UI Agent. 
+    1. Reason in text first.
+    2. Provide a UI blueprint in a \`\`\`json block.
     
-    function resetSystem() { if(confirm("Wipe all data?")) { localStorage.clear(); location.reload(); } }
+    PROTOCOL:
+    - Use "surfaceUpdate" message.
+    - Component Types: HeroCard (label, value), StandardButton (label, action), EntryField (label, bind), DataList (label, bind).
+    - Logic: Use "userAction" for buttons. Data binding via "{varName}".
+    
+    EXAMPLE:
+    { "surfaceUpdate": { "state": {"count": 0}, "components": [ 
+      {"type": "HeroCard", "props": {"label": "Count", "value": "{count}"}},
+      {"type": "StandardButton", "props": {"label": "Add", "action": {"cmd": "add", "key": "count", "val": 1}}}
+    ]}}`;
 
     async function sendMessage() {
       const input = document.getElementById('user-input');
       const text = input.value.trim();
       if (!text) return;
-
-      appendChat('user', text);
-      input.value = '';
-      input.blur(); // ⌨️ Force keyboard to close immediately
       
-      const loader = appendChat('ai', '<span class="animate-pulse">Reasoning...</span>');
+      appendChat('user', text);
+      input.value = ''; input.blur();
+      
+      const loader = appendChat('ai', '<span class="animate-pulse">A2UI Rendering...</span>');
 
       try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${CONFIG.key}`, {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
           method: "POST", headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: PROMPT + "\nState: " + JSON.stringify(STATE) + "\nUser: " + text }] }] })
+          body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: A2UI_PROMPT + "\n\nData Model: " + JSON.stringify(DATA_MODEL) + "\nUser: " + text }] }] })
         });
         const data = await res.json();
         loader.parentElement.parentElement.remove();
 
-        if (data.error) throw new Error(data.error.message);
-
-        const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response";
+        const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
         const jsonMatch = raw.match(/```json([\s\S]*?)```/);
-        let chat = raw;
-        let tool = null;
-
+        
         if (jsonMatch) {
-          chat = raw.replace(jsonMatch[0], "").trim();
-          try { tool = JSON.parse(jsonMatch[1].trim()); } catch (e) {}
+          const payload = JSON.parse(jsonMatch[1].trim());
+          if (payload.surfaceUpdate) {
+            DATA_MODEL = { ...DATA_MODEL, ...payload.surfaceUpdate.state };
+            CURRENT_COMPONENTS = payload.surfaceUpdate.components;
+            renderA2UI();
+            document.getElementById('tool-drawer').classList.add('drawer-open');
+          }
         }
-
-        if (chat) appendChat('ai', chat);
-        if (tool) {
-          STATE = { ...STATE, ...tool.state };
-          CURRENT_LAYOUT = tool.layout || CURRENT_LAYOUT;
-          renderTool();
-          document.getElementById('tool-drawer').classList.add('drawer-open');
-        }
+        appendChat('ai', raw.replace(/```json([\s\S]*?)```/, "").trim());
       } catch (e) { appendChat('ai', "Error: " + e.message); }
     }
 
-    function renderTool() {
-      const c = document.getElementById('tool-content');
-      c.innerHTML = '';
-      CURRENT_LAYOUT.forEach(atom => {
-        const props = atom.props || {};
-        let val = props.value;
-        if (typeof val === 'string' && val.includes('{')) {
-          val = val.replace(/\{([^}]+)\}/g, (m, k) => STATE[k] !== undefined ? STATE[k] : m);
+    // 🏗️ THE A2UI RENDERER (Native Implementation)
+    function renderA2UI() {
+      const surface = document.getElementById('a2ui-surface');
+      surface.innerHTML = '';
+
+      CURRENT_COMPONENTS.forEach(item => {
+        const props = item.props || {};
+        let displayVal = props.value;
+        if (typeof displayVal === 'string' && displayVal.includes('{')) {
+          displayVal = displayVal.replace(/\{([^}]+)\}/g, (m, k) => DATA_MODEL[k] !== undefined ? DATA_MODEL[k] : m);
         }
 
-        if (atom.type === 'hero') {
-          const d = document.createElement('div'); d.className = "bg-slate-700/50 p-6 rounded-3xl text-center border border-slate-600/50";
-          d.innerHTML = `<h2 class="text-[10px] uppercase font-bold text-slate-400 mb-1">${props.label||'Status'}</h2><div class="text-5xl font-black">${val}</div>`;
-          c.appendChild(d);
+        if (item.type === 'HeroCard') {
+          const d = document.createElement('div');
+          d.className = "bg-slate-800/80 p-8 rounded-[2rem] text-center border border-slate-700/50 shadow-inner";
+          d.innerHTML = `<h2 class="text-[10px] uppercase font-black text-slate-500 mb-2 tracking-widest">${props.label}</h2><div class="text-5xl font-black">${displayVal}</div>`;
+          surface.appendChild(d);
         }
-        if (atom.type === 'button') {
-          const b = document.createElement('button'); b.className = "w-full py-4 rounded-2xl font-bold bg-blue-600 text-sm shadow-lg";
-          b.innerText = props.label || 'Action';
+        
+        if (item.type === 'StandardButton') {
+          const b = document.createElement('button');
+          b.className = "w-full py-5 rounded-2xl font-black bg-blue-600 uppercase text-[10px] tracking-[0.2em] shadow-lg active:scale-95 transition";
+          b.innerText = props.label;
           b.onclick = () => {
-            const s = atom.script || props.script;
-            if (s.cmd === 'add') STATE[s.key] = Number(STATE[s.key]||0) + Number(s.val);
-            if (s.cmd === 'push') { if(!Array.isArray(STATE[s.key])) STATE[s.key] = []; STATE[s.key].push(STATE[s.source]); STATE[s.source] = ""; }
-            renderTool();
+            const act = props.action;
+            if (act.cmd === 'add') DATA_MODEL[act.key] = Number(DATA_MODEL[act.key]||0) + Number(act.val);
+            if (act.cmd === 'push') { if(!Array.isArray(DATA_MODEL[act.key])) DATA_MODEL[act.key] = []; DATA_MODEL[act.key].push(DATA_MODEL[act.source]); DATA_MODEL[act.source] = ""; }
+            renderA2UI();
           };
-          c.appendChild(b);
+          surface.appendChild(b);
+        }
+
+        if (item.type === 'EntryField') {
+          const d = document.createElement('div'); d.className = "bg-slate-800 p-4 rounded-2xl border border-slate-700";
+          d.innerHTML = `<label class="text-[10px] text-slate-500 uppercase font-black mb-2 block">${props.label}</label>`;
+          const i = document.createElement('input'); i.className = "bg-transparent w-full text-white outline-none font-medium";
+          i.placeholder = "Type here...";
+          if(props.bind) { i.value = DATA_MODEL[props.bind] || ''; i.oninput = (e) => DATA_MODEL[props.bind] = e.target.value; }
+          d.appendChild(i); surface.appendChild(d);
+        }
+
+        if (item.type === 'DataList') {
+          const list = DATA_MODEL[props.bind] || [];
+          if (list.length === 0) return;
+          const d = document.createElement('div'); d.className = "space-y-2";
+          if(props.label) d.innerHTML = `<h3 class="text-[10px] text-slate-500 uppercase font-black mb-2">${props.label}</h3>`;
+          list.forEach(val => { d.innerHTML += `<div class="p-4 bg-slate-800/40 rounded-xl border border-slate-700/30 text-sm">${val}</div>`; });
+          surface.appendChild(d);
         }
       });
     }
@@ -155,13 +150,11 @@
     function appendChat(role, text) {
       const box = document.getElementById('chat-history');
       const div = document.createElement('div');
-      div.className = `flex ${role==='user'?'justify-end':'justify-start'} w-full`;
-      div.innerHTML = `<div class="${role==='user'?'bg-blue-600 text-white':'bg-slate-800 text-slate-200'} p-4 rounded-2xl text-sm max-w-[85%] shadow-sm">${text}</div>`;
-      box.appendChild(div);
-      box.scrollTop = box.scrollHeight;
-      return div.firstChild;
+      div.className = `flex ${role==='user'?'justify-end':'justify-start'} w-full mb-6`;
+      div.innerHTML = `<div class="${role==='user'?'bg-blue-600 text-white shadow-xl shadow-blue-900/10':'bg-slate-800 text-slate-200 border border-slate-700/50'} p-4 rounded-2xl text-sm max-w-[85%] prose">${text}</div>`;
+      box.appendChild(div); box.scrollTop = box.scrollHeight; return div.firstChild;
     }
-    
+    function resetSystem() { localStorage.clear(); location.reload(); }
     function closeTool() { document.getElementById('tool-drawer').classList.remove('drawer-open'); }
   </script>
 </body>
