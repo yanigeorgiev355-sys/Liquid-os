@@ -1,74 +1,55 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit, deleteDoc } from "firebase/firestore";
+import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit } from "firebase/firestore";
 
-// --- CSS STYLES ---
-const styleTag = `
-  @keyframes spin { 0% { transform: rotateY(0deg); } 100% { transform: rotateY(1800deg); } }
-  .animate-spin-fast { animation: spin 1s ease-out forwards; }
-  .setup-input { width: 100%; padding: 10px; margin: 5px 0; background: #334155; border: 1px solid #475569; color: white; border-radius: 8px; }
-  .mic-button { transition: all 0.2s; }
-  .mic-button:active { transform: scale(0.9); }
-  .mic-active { box-shadow: 0 0 15px #ef4444; background: #ef4444 !important; }
-`;
-
-// --- SETUP SCREEN ---
-const SetupScreen = ({ onSave }) => {
-  const [apiKey, setApiKey] = useState('');
-  const [fbKey, setFbKey] = useState('');
-  const save = () => {
-    if(!apiKey || !fbKey) return alert("Keys required");
-    const config = { 
-      gemini: apiKey, 
-      firebase: { apiKey: fbKey, authDomain: "liquid-os-5da31.firebaseapp.com", projectId: "liquid-os-5da31", storageBucket: "liquid-os-5da31.firebasestorage.app", messagingSenderId: "1091307817494", appId: "1:1091307817494:web:437b4013da4ad0bdc60337" }
-    };
-    localStorage.setItem('liquid_config', JSON.stringify(config));
-    onSave(config);
-  };
-  return (
-    <div style={{ padding: 30, color: 'white', background: '#0f172a', height: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-      <h2>🔐 Liquid Security</h2>
-      <input className="setup-input" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="Gemini API Key" />
-      <input className="setup-input" value={fbKey} onChange={e => setFbKey(e.target.value)} placeholder="Firebase API Key" />
-      <button onClick={save} style={{ marginTop: 20, padding: 15, background: '#2563eb', color: 'white', border: 'none', borderRadius: 10 }}>Save & Boot</button>
-    </div>
-  );
+// --- THE LIQUID COMPONENT ENGINE ---
+// This renders WHATEVER type the AI decides to manifest.
+const AtomicElement = ({ type, props, onAction }) => {
+  const baseStyle = { padding: '12px', borderRadius: '12px', marginBottom: '10px', width: '100%' };
+  
+  switch (type) {
+    case 'button':
+      return <button onClick={() => onAction(props.label)} style={{ ...baseStyle, background: props.color || '#3b82f6', color: 'white', border: 'none', fontWeight: 'bold' }}>{props.label}</button>;
+    case 'slider':
+      return (
+        <div style={baseStyle}>
+          <label style={{display:'block', fontSize:'0.8rem', marginBottom:5}}>{props.label}: {props.value}</label>
+          <input type="range" style={{width:'100%'}} value={props.value} readOnly />
+        </div>
+      );
+    case 'status':
+      return (
+        <div style={{ ...baseStyle, background: '#1e293b', border: `1px solid ${props.color}`, display: 'flex', justifyContent: 'space-between' }}>
+          <span>{props.label}</span>
+          <span style={{ color: props.color, fontWeight: 'bold' }}>{props.value}</span>
+        </div>
+      );
+    case 'text':
+      return <p style={{ fontSize: '0.9rem', opacity: 0.8, padding: '0 5px' }}>{props.content}</p>;
+    default:
+      return null;
+  }
 };
 
-// --- DYNAMIC WIDGET ---
-const DynamicWidget = ({ db }) => {
-  const [data, setData] = useState([]);
-  const [config, setConfig] = useState({ title: "History", color: "#3b82f6", icon: "📜" });
-
-  useEffect(() => {
-    if(!db) return;
-    const q = query(collection(db, "history"), orderBy("timestamp", "desc"), limit(10));
-    getDocs(q).then(snap => {
-      const list = [];
-      let lastUI = null;
-      snap.forEach(doc => {
-        const d = doc.data();
-        if(d.type === 'ui_config') lastUI = d; 
-        if(d.type === 'data_entry') list.push({ ...d, id: doc.id });
-      });
-      if(lastUI) setConfig(lastUI);
-      setData(list);
-    });
-  }, [db, data]); // Refresh when data changes
-
+// --- THE MANIFESTATION SPACE ---
+const ManifestationSpace = ({ state, onAction }) => {
+  if (!state) return null;
   return (
-    <div style={{ background: '#1e293b', padding: '20px', borderRadius: '16px', border: `1px solid ${config.color}`, color: 'white' }}>
-      <h3 style={{ margin: '0 0 15px 0', borderBottom: '1px solid #334155', paddingBottom: 10, color: config.color }}>
-        {config.icon} {config.title}
-      </h3>
-      {data.length === 0 ? <div style={{color:'#64748b'}}>Empty...</div> : 
-        data.map((item, i) => (
-          <div key={i} style={{ display:'flex', justifyContent:'space-between', marginBottom: 8, fontSize:'0.9rem' }}>
-            <span>{item.label}</span>
-            <span style={{ fontWeight: 'bold' }}>{item.value}</span>
-          </div>
-        ))
-      }
+    <div style={{ 
+      background: '#0f172a', 
+      padding: '20px', 
+      borderRadius: '28px', 
+      border: `1px solid ${state.ui?.color || '#334155'}`, 
+      boxShadow: `0 10px 30px -10px ${state.ui?.color}44`,
+      transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)' 
+    }}>
+      <h2 style={{ margin: '0 0 20px 0', fontSize: '1.2rem', color: state.ui?.color }}>
+        {state.ui?.icon} {state.ui?.title}
+      </h2>
+      
+      {state.elements?.map((el, i) => (
+        <AtomicElement key={i} type={el.type} props={el.props} onAction={onAction} />
+      ))}
     </div>
   );
 };
@@ -78,10 +59,8 @@ function App() {
   const [config, setConfig] = useState(null);
   const [db, setDb] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
+  const [appState, setAppState] = useState({ ui: { title: "Liquid OS", color: "#3b82f6", icon: "💧" }, elements: [{ type: 'text', props: { content: "I am ready to manifest your intent." } }] });
   const [loading, setLoading] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const messagesEndRef = useRef(null);
 
   useEffect(() => {
     const saved = localStorage.getItem('liquid_config');
@@ -92,131 +71,81 @@ function App() {
     }
   }, []);
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
-
   const handleSend = async (text) => {
     if (!text.trim()) return;
-    
-    const newHistory = [...messages, { type: 'text', content: text, sender: 'user' }];
+    const newHistory = [...messages, { sender: 'user', content: text }];
     setMessages(newHistory);
-    setInput('');
     setLoading(true);
 
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${config.gemini}`;
       
-      const chatContext = newHistory.map(m => `${m.sender}: ${m.content}`).join("\n");
-
       const payload = {
         contents: [{
           parts: [{
-            text: `SYSTEM: You are LiquidOS, a Generative UI engine.
-            HISTORY:
-            ${chatContext}
+            text: `SYSTEM: You are a Generative UI Engine. Text is not enough. You must build INTERFACES.
+            
+            CURRENT UI STATE: ${JSON.stringify(appState)}
+            USER HISTORY: ${newHistory.map(m => `${m.sender}: ${m.content}`).join("\n")}
 
-            AVAILABLE ACTIONS (JSON ONLY):
-            1. { "action": "chat", "reply": "..." }
-            2. { "action": "update_ui", "title": "...", "color": "hex", "icon": "emoji", "reply": "..." }
-            3. { "action": "add_data", "label": "...", "value": "...", "reply": "..." }
-            4. { "action": "delete_last", "reply": "..." }
+            YOUR TASK: 
+            Generate the NEW TOTAL STATE. Use "elements" to build the tool.
+            
+            ELEMENT TYPES:
+            - "button": { "label": string, "color": hex }
+            - "slider": { "label": string, "value": number }
+            - "status": { "label": string, "value": string, "color": hex }
+            - "text": { "content": string }
 
-            RULES:
-            - If user tracks money -> "Expenses" (Red).
-            - If user tracks movies -> "Watchlist" (Purple).
-            - If user tracks habits -> "Habits" (Green).
-            - Always match the UI to the TOPIC.
-            `
+            REPLY ONLY IN JSON:
+            {
+              "ui": { "title": "...", "color": "hex", "icon": "emoji" },
+              "elements": [ { "type": "...", "props": {...} } ],
+              "chat_reply": "Short verbal confirmation"
+            }`
           }]
         }]
       };
 
       const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const data = await response.json();
+      const aiResponse = data.candidates[0].content.parts[0].text;
       
-      if (!data.candidates) throw new Error("AI Silent");
-      const aiText = data.candidates[0].content.parts[0].text;
-      
-      // 🟢 THE FIX: Surgical JSON Extraction
-      // Find the first '{' and the last '}' and ignore everything else.
-      const jsonStart = aiText.indexOf('{');
-      const jsonEnd = aiText.lastIndexOf('}');
-      if (jsonStart === -1 || jsonEnd === -1) throw new Error("No JSON found");
-      
-      const cleanJson = aiText.substring(jsonStart, jsonEnd + 1);
-      const toolData = JSON.parse(cleanJson);
+      const jsonStart = aiResponse.indexOf('{');
+      const jsonEnd = aiResponse.lastIndexOf('}');
+      const newState = JSON.parse(aiResponse.substring(jsonStart, jsonEnd + 1));
 
-      // EXECUTE AI DECISION
-      if (toolData.action === 'add_data') {
-        if(db) await addDoc(collection(db, "history"), { type: 'data_entry', label: toolData.label, value: toolData.value, timestamp: new Date().toISOString() });
-        setMessages(prev => [...prev, { type: 'text', content: toolData.reply || "Added.", sender: 'ai' }]);
-      } 
-      else if (toolData.action === 'update_ui') {
-        if(db) await addDoc(collection(db, "history"), { type: 'ui_config', title: toolData.title, color: toolData.color, icon: toolData.icon, timestamp: new Date().toISOString() });
-        setMessages(prev => [...prev, { type: 'text', content: toolData.reply || "Interface updated.", sender: 'ai' }]);
-      }
-      else if (toolData.action === 'delete_last') {
-        if(db) {
-            const q = query(collection(db, "history"), orderBy("timestamp", "desc"), limit(1));
-            const snap = await getDocs(q);
-            snap.forEach(async doc => await deleteDoc(doc.ref));
-        }
-        setMessages(prev => [...prev, { type: 'text', content: toolData.reply || "Undone.", sender: 'ai' }]);
-      }
-      else {
-        setMessages(prev => [...prev, { type: 'text', content: toolData.reply, sender: 'ai' }]);
-      }
+      setAppState(newState);
+      setMessages(prev => [...prev, { sender: 'ai', content: newState.chat_reply }]);
+      if(db) await addDoc(collection(db, "history"), { state: newState, timestamp: new Date().toISOString() });
 
     } catch (e) {
-      console.error(e);
-      setMessages(prev => [...prev, { type: 'text', content: 'Thinking Error (Try again)', sender: 'ai' }]);
+      setMessages(prev => [...prev, { sender: 'ai', content: "Glitch in reality. Try again." }]);
     } finally {
       setLoading(false);
     }
   };
 
-  const toggleMic = () => {
-    if (isListening) { setIsListening(false); return; }
-    const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
-    if (!SpeechRecognition) { alert("Use Chrome"); return; }
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'en-US';
-    recognition.continuous = false;
-    recognition.onstart = () => setIsListening(true);
-    recognition.onend = () => setIsListening(false);
-    recognition.onresult = (e) => {
-      const text = e.results[0][0].transcript;
-      setInput(text);
-      handleSend(text);
-    };
-    recognition.start();
-  };
-
-  if(!config) return <SetupScreen onSave={(c) => { setConfig(c); try { const app = initializeApp(c.firebase); setDb(getFirestore(app)); } catch(e){} }} />;
+  if(!config) return <div style={{color:'white', padding:20}}>Security Keys Required in LocalStorage.</div>;
 
   return (
-    <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', background: '#0f172a', color: 'white', fontFamily: 'sans-serif' }}>
-      <style>{styleTag}</style>
-      <div style={{ padding: '15px', borderBottom: '1px solid #1e293b', textAlign: 'center', fontWeight: 'bold', display:'flex', justifyContent:'space-between' }}>
-        <span>LIQUID OS (Generative)</span>
-        {loading && <span className="animate-spin-fast">⚡</span>}
-      </div>
-      
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-        <DynamicWidget db={db} />
-        {messages.map((msg, i) => (
-          <div key={i} style={{ alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
-             <div style={{ background: msg.sender === 'user' ? '#2563eb' : '#1e293b', padding: '12px', borderRadius: '12px', fontSize: '0.9rem' }}>{msg.content}</div>
-          </div>
-        ))}
-        <div ref={messagesEndRef} />
+    <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', background: '#020617', color: 'white', fontFamily: 'sans-serif' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '25px' }}>
+        
+        <ManifestationSpace state={appState} onAction={(btn) => handleSend(`I clicked the ${btn} button.`)} />
+
+        <div style={{ display:'flex', flexDirection:'column', gap: '12px' }}>
+          {messages.map((m, i) => (
+            <div key={i} style={{ alignSelf: m.sender === 'user' ? 'flex-end' : 'flex-start', background: m.sender === 'user' ? '#1e40af' : '#1e293b', padding: '12px 16px', borderRadius: '18px', fontSize: '0.9rem', maxWidth: '85%', border: m.sender === 'ai' ? '1px solid #334155' : 'none' }}>
+              {m.content}
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div style={{ padding: '15px', background: '#0f172a', borderTop: '1px solid #1e293b' }}>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={toggleMic} className={`mic-button ${isListening ? 'mic-active' : ''}`} style={{ width: '45px', height: '45px', borderRadius: '50%', background: '#1e293b', border: 'none', color: 'white', fontSize: '1.2rem' }}>{isListening ? '🛑' : '🎤'}</button>
-          <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend(input)} placeholder="Speak..." style={{ flex: 1, background: '#1e293b', border: 'none', borderRadius: '20px', padding: '12px 20px', color: 'white', outline: 'none' }} />
-          <button onClick={() => handleSend(input)} style={{ width: '45px', height: '45px', borderRadius: '50%', background: '#7c3aed', border: 'none', color: 'white' }}>➡️</button>
-        </div>
+      <div style={{ padding: '20px', background: '#020617', borderTop: '1px solid #1e293b', display: 'flex', gap: '10px' }}>
+        <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend(input)} placeholder="Describe what you want to see..." style={{ flex: 1, background: '#1e293b', border: 'none', borderRadius: '24px', padding: '14px 24px', color: 'white', outline: 'none' }} />
+        <button onClick={() => handleSend(input)} style={{ background: '#6366f1', border: 'none', borderRadius: '50%', width: 50, height: 50, color: 'white', fontSize: '1.2rem' }}>🪄</button>
       </div>
     </div>
   );
