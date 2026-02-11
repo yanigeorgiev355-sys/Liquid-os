@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Liquid OS (Tank v2)</title>
+  <title>Liquid OS (Agent v4)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
   <style>
@@ -11,12 +11,15 @@
     ::-webkit-scrollbar { width: 8px; }
     ::-webkit-scrollbar-track { background: #1e293b; }
     ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+    /* Markdown-ish styles for chat */
+    .prose p { margin-bottom: 0.5em; }
+    .prose ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 0.5em; }
   </style>
 </head>
 <body class="h-screen flex flex-col overflow-hidden">
 
   <div class="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900 z-10">
-    <h1 class="font-bold text-lg tracking-tight">LIQUID OS <span class="text-xs text-green-500">TANK v2</span></h1>
+    <h1 class="font-bold text-lg tracking-tight">LIQUID OS <span class="text-xs text-blue-400">AGENT v4</span></h1>
     <button onclick="resetSystem()" class="text-xs text-red-400 hover:text-red-300">Reset</button>
   </div>
 
@@ -29,34 +32,22 @@
   </div>
 
   <div id="main-ui" class="flex-1 flex flex-col overflow-hidden relative">
-    
     <div id="chat-history" class="flex-1 overflow-y-auto p-4 space-y-4 pb-48">
-      <div class="flex justify-start">
-        <div class="bg-slate-800 p-3 rounded-2xl text-sm max-w-[85%] text-slate-300">
-          Tank Engine v2 Stable. Debugger active.
-        </div>
-      </div>
+      <div class="flex justify-start"><div class="bg-slate-800 p-3 rounded-2xl text-sm max-w-[85%] text-slate-300">Agent Online. I will reason before I build.</div></div>
     </div>
 
-    <div id="tool-drawer" class="hidden absolute bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-700 p-4 rounded-t-3xl shadow-2xl max-h-[70vh] overflow-y-auto z-20 transition-transform duration-300 translate-y-full flex flex-col">
+    <div id="tool-drawer" class="hidden absolute bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-700 p-4 rounded-t-3xl shadow-2xl max-h-[75vh] overflow-y-auto z-20 transition-transform duration-300 translate-y-full flex flex-col">
       <div class="flex justify-between items-center mb-4 shrink-0">
         <span class="text-xs font-bold text-slate-500 uppercase tracking-widest">Active Tool</span>
         <button onclick="closeTool()" class="text-slate-500 hover:text-white">✕</button>
       </div>
-      
       <div id="tool-content" class="flex flex-col gap-3 shrink-0"></div>
-
-      <details class="mt-6 pt-4 border-t border-slate-800 shrink-0">
-        <summary class="text-xs text-slate-500 cursor-pointer hover:text-blue-400">🔍 Debug Raw JSON</summary>
-        <pre id="debug-pre" class="text-[10px] text-slate-400 mt-2 p-2 bg-slate-950 rounded-xl overflow-x-auto">No data.</pre>
-      </details>
     </div>
 
     <div class="p-3 bg-slate-950 border-t border-slate-800 flex gap-2 z-30">
-      <input id="user-input" type="text" placeholder="Command..." class="flex-1 bg-slate-900 p-3 rounded-xl outline-none text-white focus:ring-1 focus:ring-blue-500" onkeydown="if(event.key==='Enter') sendMessage()">
+      <input id="user-input" type="text" placeholder="Ask for advice or tools..." class="flex-1 bg-slate-900 p-3 rounded-xl outline-none text-white focus:ring-1 focus:ring-blue-500" onkeydown="if(event.key==='Enter') sendMessage()">
       <button onclick="sendMessage()" id="send-btn" class="bg-blue-600 px-5 rounded-xl font-bold hover:bg-blue-500">↑</button>
     </div>
-
   </div>
 
   <script>
@@ -64,26 +55,42 @@
     let STATE = {}; 
     let CURRENT_LAYOUT = [];
 
-    // 🧠 SYSTEM PROMPT (Updated for clarity)
-    const SYSTEM_PROMPT = `You are Liquid OS. Reply with JSON only. Do not use markdown blocks.
-Protocol:
-1. "state": Initialize ALL variables used in UI. E.g. {"score": 0}
-2. "layout": The UI atoms. Use "{variableName}" to bind data.
-3. "script": Logic for buttons. E.g. {"cmd": "add", "key": "score", "val": 1}
+    // 🧠 AGENT PROMPT: ENCOURAGES REASONING
+    const SYSTEM_PROMPT = `
+You are Liquid OS. You are an expert consultant and interface designer.
+Your Goal: Help the user solve problems by combining natural advice with interactive tools.
 
-CRITICAL: Ensure variable names in "state", "layout" ({name}), and "script" (key) MATCH EXACTLY.
+PROTOCOL:
+1. **Think First:** Analyze the user's request. Give advice, strategies, or reasoning in plain text.
+2. **Build Second:** If a tool would help, append a JSON block at the end of your response.
 
-Example:
+THE JSON BLOCK MUST BE WRAPPED IN \`\`\`json \`\`\`.
+
+TOOL PROTOCOL (Inside JSON):
+- "state": { "varName": value } (Memory)
+- "layout": [Atoms] (UI)
+- "script": { "cmd": "add/push/set", "key": "varName", "val/source": ... }
+
+AVAILABLE ATOMS:
+- hero (label, value)
+- button (label, script)
+- input (label, bind)
+- list_view (label, bind)
+
+EXAMPLE RESPONSE:
+"To improve your water habits, you should aim for small, frequent sips. I've designed a tracker that breaks your 3L goal into 250ml cups."
+\`\`\`json
 {
-  "chat": "Scoreboard ready.",
   "tool": {
-    "state": { "points": 0 },
+    "state": { "drank": 0, "goal": 3000 },
     "layout": [
-      { "type": "hero", "props": { "label": "Score", "value": "{points}" } },
-      { "type": "button", "props": { "label": "+1 Point" }, "script": { "cmd": "add", "key": "points", "val": 1 } }
+      { "type": "hero", "props": { "label": "Hydration", "value": "{drank} / {goal} ml" } },
+      { "type": "button", "props": { "label": "+250ml Cup" }, "script": { "cmd": "add", "key": "drank", "val": 250 } }
     ]
   }
-}`;
+}
+\`\`\`
+`;
 
     window.onload = () => {
       const savedKey = localStorage.getItem("liquid_os_key");
@@ -96,40 +103,51 @@ Example:
       localStorage.setItem("liquid_os_key", key); CONFIG.key = key;
       document.getElementById('setup-screen').classList.add('hidden');
     }
-
     function resetSystem() { if(confirm("Factory Reset?")) { localStorage.clear(); location.reload(); } }
 
     async function sendMessage() {
-      const input = document.getElementById('user-input');
-      const btn = document.getElementById('send-btn');
-      const text = input.value.trim();
-      if (!text) return;
-      
+      const input = document.getElementById('user-input'); const btn = document.getElementById('send-btn');
+      const text = input.value.trim(); if (!text) return;
       appendChat('user', text); input.value = ''; btn.disabled = true; btn.innerText = '...';
       
       try {
+        // 🧠 CONTEXT INJECTION: We send the current STATE so the AI knows what's happening
+        const contextMsg = `Current Tool State: ${JSON.stringify(STATE)}. User Request: ${text}`;
+
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${CONFIG.key}`, {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: SYSTEM_PROMPT + "\nUser: " + text }] }] })
+            body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: SYSTEM_PROMPT + "\n\n" + contextMsg }] }] })
         });
-        const data = await response.json();
-        btn.disabled = false; btn.innerText = '↑';
-
-        const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-        const cleanJson = aiText.replace(/```json/g, '').replace(/```/g, '').trim();
         
-        // 🔍 DEBUG: Show raw JSON
-        document.getElementById('debug-pre').innerText = cleanJson;
+        const data = await response.json(); btn.disabled = false; btn.innerText = '↑';
+        const aiRaw = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        
+        // 🕵️ SPLITTER: Separate Text from JSON
+        const jsonMatch = aiRaw.match(/```json([\s\S]*?)```/);
+        let chatText = aiRaw;
+        let toolData = null;
 
-        let payload;
-        try { payload = JSON.parse(cleanJson); } catch (e) { appendChat('ai', "JSON Error: " + cleanJson); return; }
-
-        appendChat('ai', payload.chat || "Done.");
-        if (payload.tool) {
-          STATE = payload.tool.state || {};
-          CURRENT_LAYOUT = payload.tool.layout || [];
-          renderTool(); openTool();
+        if (jsonMatch) {
+            chatText = aiRaw.replace(jsonMatch[0], "").trim(); // Remove JSON from chat
+            try {
+                const cleanJson = jsonMatch[1].trim();
+                const payload = JSON.parse(cleanJson);
+                if (payload.tool) toolData = payload.tool;
+            } catch (e) { console.error("JSON Parse Error", e); }
         }
+
+        // 1. Show the Reasoning (Chat)
+        if (chatText) appendChat('ai', chatText);
+
+        // 2. Build the Tool (Logic)
+        if (toolData) {
+            // Merge State (Keep old memories if not overwritten)
+            STATE = { ...STATE, ...toolData.state };
+            CURRENT_LAYOUT = toolData.layout || CURRENT_LAYOUT;
+            renderTool();
+            openTool();
+        }
+
       } catch (e) { btn.disabled = false; btn.innerText = '↑'; appendChat('ai', "Error: " + e.message); }
     }
 
@@ -142,42 +160,68 @@ Example:
       if (!atom) return null;
       const props = atom.props || {};
       let displayValue = props.value;
-      // 🔮 Smart Binding with Fallback
-      if (typeof displayValue === 'string') {
-        displayValue = displayValue.replace(/\{([^}]+)\}/g, (match, key) => STATE[key] !== undefined ? STATE[key] : match);
+
+      if (typeof displayValue === 'string' && displayValue.includes('{')) {
+        displayValue = displayValue.replace(/\{([^}]+)\}/g, (match, path) => {
+          if(path.includes('.length')) {
+             const key = path.split('.')[0];
+             return Array.isArray(STATE[key]) ? STATE[key].length : 0;
+          }
+          return STATE[path] !== undefined ? STATE[path] : match;
+        });
       }
       const script = atom.script || atom.action || props.script;
 
       if (atom.type === 'hero') {
-        const div = document.createElement('div'); div.className = "bg-slate-800 p-6 rounded-2xl text-center border border-slate-700 shadow-lg";
+        div = document.createElement('div'); div.className = "bg-slate-800 p-6 rounded-2xl text-center border border-slate-700 shadow-lg";
         div.innerHTML = `<h2 class="text-slate-400 text-xs uppercase font-bold mb-2">${props.label||'Metric'}</h2><div class="text-5xl font-black text-white truncate" style="color:${props.color||'white'}">${displayValue}</div>`; return div;
       }
       if (atom.type === 'button') {
-        const btn = document.createElement('button'); btn.className = "w-full py-4 px-6 rounded-xl font-bold text-white shadow-lg active:scale-95 transition transform flex justify-center gap-2";
-        btn.style.backgroundColor = props.color || '#3b82f6'; btn.innerText = props.label || 'Action'; btn.onclick = () => executeScript(script); return btn;
+        btn = document.createElement('button'); btn.className = "w-full py-4 px-6 rounded-xl font-bold text-white shadow-lg active:scale-95 transition transform bg-blue-600";
+        btn.style.backgroundColor = props.color; btn.innerText = props.label || 'Action'; btn.onclick = () => executeScript(script); return btn;
       }
       if (atom.type === 'input') {
-        const div = document.createElement('div'); div.className = "bg-slate-800 p-3 rounded-xl border border-slate-700";
+        div = document.createElement('div'); div.className = "bg-slate-800 p-3 rounded-xl border border-slate-700";
         div.innerHTML = `<label class="text-xs text-slate-500 uppercase font-bold block mb-1">${props.label}</label>`;
-        div.innerHTML += `<input class="bg-transparent w-full text-white outline-none" placeholder="${props.placeholder||''}">`; return div;
+        const inp = document.createElement('input'); inp.className = "bg-transparent w-full text-white outline-none placeholder-slate-500";
+        inp.placeholder = props.placeholder||'';
+        if(props.bind) { inp.value = STATE[props.bind] || ''; inp.oninput = (e) => { STATE[props.bind] = e.target.value; }}
+        div.appendChild(inp); return div;
       }
-      if (atom.type === 'text') { const p = document.createElement('p'); p.className="text-center text-slate-400 text-sm"; p.innerText=props.label; return p;}
+      if (atom.type === 'list_view') {
+         const listData = STATE[props.bind];
+         if(!Array.isArray(listData) || listData.length === 0) return null;
+         div = document.createElement('div'); div.className = "bg-slate-800/50 p-4 rounded-xl border border-slate-700/50";
+         if(props.label) div.innerHTML = `<h3 class="text-xs text-slate-400 uppercase font-bold mb-2">${props.label}</h3>`;
+         ul = document.createElement('ul'); ul.className = "space-y-2";
+         listData.forEach(item => { li = document.createElement('li'); li.className="p-2 bg-slate-800 rounded-lg text-sm"; li.innerText = item; ul.appendChild(li); });
+         div.appendChild(ul); return div;
+      }
       return null;
     }
 
     function executeScript(script) {
-      if (!script || typeof script !== 'object') return alert("Invalid logic.");
-      const { cmd, key, val } = script;
-      const numVal = Number(val); const current = Number(STATE[key] || 0);
-      if (cmd === 'add') STATE[key] = current + numVal;
-      if (cmd === 'subtract') STATE[key] = current - numVal;
-      if (cmd === 'set') STATE[key] = numVal;
-      renderTool(); // Re-render to update {variables}
+      if (!script || typeof script !== 'object') return;
+      const { cmd, key, val, source } = script;
+      if (cmd === 'add' || cmd === 'subtract' || cmd === 'set') {
+         const numVal = Number(val); const current = Number(STATE[key] || 0);
+         if (cmd === 'add') STATE[key] = current + numVal;
+         if (cmd === 'subtract') STATE[key] = current - numVal;
+         if (cmd === 'set') STATE[key] = numVal;
+      }
+      else if (cmd === 'push') {
+         const textToAdd = STATE[source]; 
+         if(textToAdd && Array.isArray(STATE[key])) {
+            STATE[key].push(textToAdd);
+            STATE[source] = ""; 
+         }
+      }
+      renderTool(); 
     }
 
     function appendChat(role, text) {
       const box = document.getElementById('chat-history');
-      box.innerHTML += `<div class="flex ${role==='user'?'justify-end':'justify-start'}"><div class="${role==='user'?'bg-blue-600':'bg-slate-800'} p-3 rounded-2xl text-sm max-w-[85%]">${text}</div></div>`;
+      box.innerHTML += `<div class="flex ${role==='user'?'justify-end':'justify-start'}"><div class="${role==='user'?'bg-blue-600 prose':'bg-slate-800 prose'} p-3 rounded-2xl text-sm max-w-[85%]">${text}</div></div>`;
       box.scrollTop = box.scrollHeight;
     }
     function openTool() { document.getElementById('tool-drawer').classList.remove('hidden', 'translate-y-full'); }
