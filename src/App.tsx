@@ -1,35 +1,150 @@
-// Inside App.jsx - Update only the handleSend function logic:
+import React, { useState, useEffect, useRef } from 'react';
+import { initializeApp } from "firebase/app";
+import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit } from "firebase/firestore";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const handleSend = async (text) => {
+// --- CONFIGURATION ---
+const GEMINI_API_KEY = "AIzaSyAhhB16FzCUJtjfEmB7llffOgdavtEOQMU"; 
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAo8-dWRi7Y6e7W4KqAp8dVc5rpPMDhelY",
+  authDomain: "liquid-os-5da31.firebaseapp.com",
+  projectId: "liquid-os-5da31",
+  storageBucket: "liquid-os-5da31.firebasestorage.app",
+  messagingSenderId: "1091307817494",
+  appId: "1:1091307817494:web:437b4013da4ad0bdc60337"
+};
+
+// Initialize Services with Error Catching
+let db;
+let genAI;
+try {
+  const app = initializeApp(firebaseConfig);
+  db = getFirestore(app);
+  genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+} catch (e) {
+  console.error("Firebase/AI Init Error", e);
+}
+
+// --- STYLES ---
+const styleTag = `
+  @keyframes spin { 0% { transform: rotateY(0deg); } 100% { transform: rotateY(1800deg); } }
+  @keyframes breathe { 0% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.3); opacity: 1; } 100% { transform: scale(1); opacity: 0.5; } }
+  .animate-spin-fast { animation: spin 1s ease-out forwards; }
+  .animate-breathe { animation: breathe 4s infinite ease-in-out; }
+`;
+
+// --- WIDGETS ---
+const CoinFlipper = () => {
+  const [result, setResult] = useState(null);
+  const [flipping, setFlipping] = useState(false);
+  const flip = async () => {
+    setFlipping(true); setResult(null);
+    const outcome = Math.random() > 0.5 ? 'HEADS' : 'TAILS';
+    try { await addDoc(collection(db, "history"), { type: 'coin', outcome, timestamp: new Date().toISOString() }); } catch (e) {}
+    setTimeout(() => { setResult(outcome); setFlipping(false); }, 1000);
+  };
+  useEffect(() => { flip(); }, []);
+  return (
+    <div style={{ background: '#1e293b', padding: '20px', borderRadius: '16px', border: '1px solid #334155', textAlign: 'center', margin: '10px 0', color: 'white' }}>
+      <div style={{ height: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className={flipping ? 'animate-spin-fast' : ''} style={{ width: '80px', height: '80px', borderRadius: '50%', border: '4px solid #3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem', background: '#0f172a', margin: '0 auto' }}>{result ? (result === 'HEADS' ? '👑' : '🦅') : '❓'}</div>
+      </div>
+      <button onClick={flip} style={{ width: '100%', padding: '12px', background: '#2563eb', border: 'none', borderRadius: '12px', color: 'white', fontWeight: 'bold' }}>🔄 Flip Again</button>
+    </div>
+  );
+};
+
+const StatsBoard = () => {
+  const [stats, setStats] = useState({ heads: 0, tails: 0, total: 0 });
+  useEffect(() => {
+    const fetchStats = async () => {
+      const q = query(collection(db, "history"), orderBy("timestamp", "desc"), limit(50));
+      const snap = await getDocs(q);
+      let h = 0; let t = 0;
+      snap.forEach((doc) => { const d = doc.data(); if (d.outcome === 'HEADS') h++; else t++; });
+      setStats({ heads: h, tails: t, total: h + t });
+    };
+    fetchStats();
+  }, []);
+  const headsPct = stats.total ? (stats.heads / stats.total) * 100 : 0;
+  return (
+    <div style={{ background: '#1e293b', padding: '20px', borderRadius: '16px', border: '1px solid #334155', color: 'white' }}>
+      <h3 style={{ margin: '0 0 10px 0' }}>📊 Cloud Stats</h3>
+      <div style={{ height: '8px', background: '#334155', borderRadius: '4px', overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${headsPct}%`, background: '#3b82f6' }}></div>
+      </div>
+      <p style={{fontSize: '0.8rem', marginTop: '10px'}}>Heads: {stats.heads} | Tails: {stats.tails}</p>
+    </div>
+  );
+};
+
+// --- MAIN APP ---
+function App() {
+  const [messages, setMessages] = useState([{ type: 'text', content: 'Liquid OS v1.1. Say "Flip a coin" or "Stats".', sender: 'ai' }]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const messagesEndRef = useRef(null);
+
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
+  const handleSend = async (text) => {
     if (!text.trim()) return;
     setMessages(prev => [...prev, { type: 'text', content: text, sender: 'user' }]);
     setInput('');
-    setIsProcessing(true);
+    setLoading(true);
 
     try {
-      // UPGRADED TO GEMINI 2.5 FLASH
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-      
-      const prompt = `You are LiquidOS. User says: "${text}". 
-      Reply ONLY in JSON: { "tool": "coin"|"focus"|"stats"|"text", "reply": "string" }`;
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const prompt = `You are LiquidOS. The user said: "${text}". Reply ONLY in JSON format: {"tool": "coin"|"stats"|"text", "reply": "short message"}`;
       
       const result = await model.generateContent(prompt);
-      const responseText = await result.response.text();
-      
-      const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+      const response = await result.response;
+      const cleanJson = response.text().replace(/```json/g, '').replace(/```/g, '').trim();
       const data = JSON.parse(cleanJson);
 
       if (data.tool === 'text') {
         setMessages(prev => [...prev, { type: 'text', content: data.reply, sender: 'ai' }]);
       } else {
         setMessages(prev => [...prev, { type: 'component', content: data.tool, sender: 'ai' }]);
-        if (data.reply) setMessages(prev => [...prev, { type: 'text', content: data.reply, sender: 'ai' }]);
       }
-    } catch (error) {
-      // This will tell us if it's a 403 (Permission) or 404 (Model) error
-      console.error("AI Error:", error);
-      setMessages(prev => [...prev, { type: 'text', content: `Error: ${error.message.substring(0, 50)}...`, sender: 'ai' }]);
+    } catch (e) {
+      setMessages(prev => [...prev, { type: 'text', content: 'Error: ' + e.message, sender: 'ai' }]);
     } finally {
-      setIsProcessing(false);
+      setLoading(false);
     }
   };
+
+  return (
+    <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', background: '#0f172a', color: 'white', fontFamily: 'sans-serif' }}>
+      <style>{styleTag}</style>
+      <div style={{ padding: '15px', borderBottom: '1px solid #1e293b', textAlign: 'center', fontWeight: 'bold' }}>LIQUID BRAIN</div>
+      
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        {messages.map((msg, i) => (
+          <div key={i} style={{ alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
+            {msg.type === 'text' ? (
+              <div style={{ background: msg.sender === 'user' ? '#2563eb' : '#1e293b', padding: '12px', borderRadius: '12px' }}>{msg.content}</div>
+            ) : (
+              <div style={{ width: '280px' }}>
+                {msg.content === 'coin' && <CoinFlipper />}
+                {msg.content === 'stats' && <StatsBoard />}
+              </div>
+            )}
+          </div>
+        ))}
+        {loading && <div style={{color: '#64748b', fontSize: '0.8rem'}}>Thinking...</div>}
+        <div ref={messagesEndRef} />
+      </div>
+
+      <div style={{ padding: '15px', background: '#0f172a', borderTop: '1px solid #1e293b' }}>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend(input)} placeholder="Talk to the OS..." style={{ flex: 1, background: '#1e293b', border: 'none', borderRadius: '20px', padding: '12px 20px', color: 'white', outline: 'none' }} />
+          <button onClick={() => handleSend(input)} style={{ width: '45px', height: '45px', borderRadius: '50%', background: '#7c3aed', border: 'none', color: 'white' }}>➡️</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default App;
