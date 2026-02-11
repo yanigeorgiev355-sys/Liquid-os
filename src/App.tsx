@@ -2,39 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit } from "firebase/firestore";
 
-// ==========================================
-// ⚙️ SYSTEM SETTINGS (FUTURE PROOFING)
-// ==========================================
-const SYSTEM_CONFIG = {
-  // 1. YOUR API KEY
-  apiKey: "AIzaSyAhhB16FzCUJtjfEmB7llffOgdavtEOQMU", 
-  
-  // 2. THE BRAIN MODEL
-  // If this becomes obsolete, just change this text (e.g., to "gemini-3.0-flash")
-  modelName: "gemini-2.5-flash",
-
-  // 3. FIREBASE KEYS
-  firebase: {
-    apiKey: "AIzaSyAo8-dWRi7Y6e7W4KqAp8dVc5rpPMDhelY",
-    authDomain: "liquid-os-5da31.firebaseapp.com",
-    projectId: "liquid-os-5da31",
-    storageBucket: "liquid-os-5da31.firebasestorage.app",
-    messagingSenderId: "1091307817494",
-    appId: "1:1091307817494:web:437b4013da4ad0bdc60337"
-  }
-};
-
-// ==========================================
-// 🔧 INITIALIZATION
-// ==========================================
-let db;
-try {
-  const app = initializeApp(SYSTEM_CONFIG.firebase);
-  db = getFirestore(app);
-} catch (e) {
-  console.error("Firebase Init Error", e);
-}
-
 // --- CSS STYLES ---
 const styleTag = `
   @keyframes spin { 0% { transform: rotateY(0deg); } 100% { transform: rotateY(1800deg); } }
@@ -42,63 +9,103 @@ const styleTag = `
   .mic-button { transition: all 0.2s; }
   .mic-button:active { transform: scale(0.9); }
   .mic-active { box-shadow: 0 0 15px #ef4444; background: #ef4444 !important; }
+  .setup-input { width: 100%; padding: 10px; margin: 5px 0; background: #334155; border: 1px solid #475569; color: white; border-radius: 8px; }
 `;
 
-// ==========================================
-// 🧩 WIDGETS (THE TOOLS)
-// ==========================================
-const CoinFlipper = () => {
-  const [result, setResult] = useState(null);
-  const [flipping, setFlipping] = useState(false);
-  const flip = async () => {
-    setFlipping(true); setResult(null);
-    const outcome = Math.random() > 0.5 ? 'HEADS' : 'TAILS';
-    // Save to Cloud
-    try { await addDoc(collection(db, "history"), { type: 'coin', outcome, timestamp: new Date().toISOString() }); } catch (e) {}
-    setTimeout(() => { setResult(outcome); setFlipping(false); }, 1000);
+// --- SETUP COMPONENT (Protects your keys in Public Repo) ---
+const SetupScreen = ({ onSave }) => {
+  const [apiKey, setApiKey] = useState('');
+  const [fbKey, setFbKey] = useState('');
+  
+  const save = () => {
+    if(!apiKey || !fbKey) return alert("Keys required");
+    const config = { 
+      gemini: apiKey, 
+      firebase: {
+        apiKey: fbKey,
+        authDomain: "liquid-os-5da31.firebaseapp.com",
+        projectId: "liquid-os-5da31",
+        storageBucket: "liquid-os-5da31.firebasestorage.app",
+        messagingSenderId: "1091307817494",
+        appId: "1:1091307817494:web:437b4013da4ad0bdc60337"
+      }
+    };
+    localStorage.setItem('liquid_config', JSON.stringify(config));
+    onSave(config);
   };
-  useEffect(() => { flip(); }, []);
+
   return (
-    <div style={{ background: '#1e293b', padding: '20px', borderRadius: '16px', border: '1px solid #334155', textAlign: 'center', margin: '10px 0', color: 'white' }}>
-      <div style={{ height: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div className={flipping ? 'animate-spin-fast' : ''} style={{ width: '80px', height: '80px', borderRadius: '50%', border: '4px solid #3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem', background: '#0f172a', margin: '0 auto' }}>{result ? (result === 'HEADS' ? '👑' : '🦅') : '❓'}</div>
-      </div>
-      <button onClick={flip} style={{ width: '100%', padding: '12px', background: '#2563eb', border: 'none', borderRadius: '12px', color: 'white', fontWeight: 'bold' }}>🔄 Flip Again</button>
+    <div style={{ padding: 30, color: 'white', background: '#0f172a', height: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+      <h2 style={{ borderBottom: '1px solid #334155', paddingBottom: 10 }}>🔐 Liquid Security</h2>
+      <p style={{color:'#94a3b8', fontSize: '0.9rem', marginBottom: 20}}>
+        Your Repo is Public. Do not commit keys.<br/>
+        Enter them here. They are saved ONLY to this phone.
+      </p>
+      
+      <label style={{fontWeight:'bold', fontSize:'0.9rem'}}>Gemini API Key (AI Studio)</label>
+      <input className="setup-input" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="Paste AIza key here..." />
+      
+      <label style={{marginTop: 20, display:'block', fontWeight:'bold', fontSize:'0.9rem'}}>Firebase API Key (Google Cloud)</label>
+      <input className="setup-input" value={fbKey} onChange={e => setFbKey(e.target.value)} placeholder="Paste AIza key here..." />
+      
+      <button onClick={save} style={{ width:'100%', marginTop: 30, padding: 15, background: '#2563eb', color: 'white', border: 'none', borderRadius: 10, fontWeight: 'bold', fontSize: '1rem' }}>
+        💾 Save & Boot OS
+      </button>
     </div>
   );
 };
 
-const StatsBoard = () => {
-  const [stats, setStats] = useState({ heads: 0, tails: 0, total: 0 });
+// --- WIDGETS ---
+const FinanceTracker = ({ db }) => {
+  const [items, setItems] = useState([]);
+  
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const q = query(collection(db, "history"), orderBy("timestamp", "desc"), limit(50));
-        const snap = await getDocs(q);
-        let h = 0; let t = 0;
-        snap.forEach((doc) => { const d = doc.data(); if (d.outcome === 'HEADS') h++; else t++; });
-        setStats({ heads: h, tails: t, total: h + t });
-      } catch (e) { console.log(e); }
-    };
-    fetchStats();
-  }, []);
-  const headsPct = stats.total ? (stats.heads / stats.total) * 100 : 0;
+    if(!db) return;
+    const q = query(collection(db, "history"), orderBy("timestamp", "desc"), limit(5));
+    getDocs(q).then(snap => {
+      const list = [];
+      snap.forEach(doc => {
+        const d = doc.data();
+        if(d.type === 'finance') list.push(d);
+      });
+      setItems(list);
+    });
+  }, [db]);
+
   return (
     <div style={{ background: '#1e293b', padding: '20px', borderRadius: '16px', border: '1px solid #334155', color: 'white' }}>
-      <h3 style={{ margin: '0 0 10px 0' }}>📊 Cloud Stats</h3>
-      <div style={{ height: '8px', background: '#334155', borderRadius: '4px', overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${headsPct}%`, background: '#3b82f6' }}></div>
-      </div>
-      <p style={{fontSize: '0.8rem', marginTop: '10px'}}>Heads: {stats.heads} | Tails: {stats.tails}</p>
+      <h3 style={{ margin: '0 0 15px 0', borderBottom: '1px solid #334155', paddingBottom: 10 }}>💳 Recent Spending</h3>
+      {items.length === 0 ? <div style={{color:'#64748b'}}>No recent spending</div> : 
+        items.map((item, i) => (
+          <div key={i} style={{ display:'flex', justifyContent:'space-between', marginBottom: 10, fontSize:'0.9rem' }}>
+            <span>{item.item}</span>
+            <span style={{color: '#ef4444'}}>-${item.amount}</span>
+          </div>
+        ))
+      }
     </div>
   );
 };
 
-// ==========================================
-// 🧠 MAIN APP (THE BRAIN)
-// ==========================================
+// --- MAIN APP ---
 function App() {
-  const [messages, setMessages] = useState([{ type: 'text', content: 'Liquid OS Online. How can I help?', sender: 'ai' }]);
+  const [config, setConfig] = useState(null);
+  const [db, setDb] = useState(null);
+  
+  // Load Config from Phone Memory
+  useEffect(() => {
+    const saved = localStorage.getItem('liquid_config');
+    if(saved) {
+      const c = JSON.parse(saved);
+      setConfig(c);
+      try {
+        const app = initializeApp(c.firebase);
+        setDb(getFirestore(app));
+      } catch(e) { console.error(e); }
+    }
+  }, []);
+
+  const [messages, setMessages] = useState([{ type: 'text', content: 'Liquid OS Online. Try "Spent $10 on food".', sender: 'ai' }]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -113,38 +120,46 @@ function App() {
     setLoading(true);
 
     try {
-      // 🟢 FUTURE-PROOF URL CONSTRUCTION
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${SYSTEM_CONFIG.modelName}:generateContent?key=${SYSTEM_CONFIG.apiKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${config.gemini}`;
       
       const payload = {
         contents: [{
           parts: [{
             text: `You are LiquidOS. User said: "${text}". 
-            Reply ONLY in JSON format: {"tool": "coin"|"stats"|"text", "reply": "short message"}.
-            If indecisive, use "coin". If asking history, use "stats".`
+            
+            TOOLS:
+            1. "finance": Use if user mentions spending money, buying things, or prices.
+               Extract: { "item": string, "amount": number }
+            2. "text": Normal conversation.
+
+            Reply ONLY in JSON: 
+            {"tool": "finance"|"text", "reply": "confirmation text", "data": { ...extracted_data } }`
           }]
         }]
       };
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
+      const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const data = await response.json();
       
-      if (data.error) throw new Error(data.error.message);
       if (!data.candidates) throw new Error("AI Silent");
 
       const aiText = data.candidates[0].content.parts[0].text;
       const cleanJson = aiText.replace(/```json/g, '').replace(/```/g, '').trim();
       const toolData = JSON.parse(cleanJson);
 
-      if (toolData.tool === 'text') {
-        setMessages(prev => [...prev, { type: 'text', content: toolData.reply, sender: 'ai' }]);
+      if (toolData.tool === 'finance') {
+        if(db) {
+          await addDoc(collection(db, "history"), {
+            type: 'finance',
+            item: toolData.data.item || 'Unknown',
+            amount: toolData.data.amount || 0,
+            timestamp: new Date().toISOString()
+          });
+        }
+        setMessages(prev => [...prev, { type: 'component', content: 'finance', sender: 'ai' }]);
+        setMessages(prev => [...prev, { type: 'text', content: `Saved: $${toolData.data.amount} for ${toolData.data.item}`, sender: 'ai' }]);
       } else {
-        setMessages(prev => [...prev, { type: 'component', content: toolData.tool, sender: 'ai' }]);
+        setMessages(prev => [...prev, { type: 'text', content: toolData.reply, sender: 'ai' }]);
       }
 
     } catch (e) {
@@ -171,6 +186,8 @@ function App() {
     recognition.start();
   };
 
+  if(!config) return <SetupScreen onSave={(c) => { setConfig(c); try { const app = initializeApp(c.firebase); setDb(getFirestore(app)); } catch(e){} }} />;
+
   return (
     <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', background: '#0f172a', color: 'white', fontFamily: 'sans-serif' }}>
       <style>{styleTag}</style>
@@ -186,8 +203,7 @@ function App() {
               <div style={{ background: msg.sender === 'user' ? '#2563eb' : '#1e293b', padding: '12px', borderRadius: '12px' }}>{msg.content}</div>
             ) : (
               <div style={{ width: '280px' }}>
-                {msg.content === 'coin' && <CoinFlipper />}
-                {msg.content === 'stats' && <StatsBoard />}
+                {msg.content === 'finance' && <FinanceTracker db={db} />}
               </div>
             )}
           </div>
