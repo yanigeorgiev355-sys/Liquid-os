@@ -1,57 +1,47 @@
-// ... (Previous imports and SetupScreen remain the same) ...
+import React, { useState } from 'react';
+import { AtomRender } from './components/AtomRender';
 
-const handleSend = async (text) => {
-  if (!text.trim()) return;
-  const newHistory = [...messages, { sender: 'user', content: text }];
-  setMessages(newHistory);
-  setLoading(true);
+// 🧪 MOCK BRAIN: This simulates what Gemini sends us
+const TEST_BLUEPRINT = [
+  { type: 'hero', props: { label: 'Daily Water Goal', value: '750ml / 3000ml', color: '#60a5fa' } },
+  { type: 'box', props: { direction: 'row', children: [
+      { type: 'button', props: { label: '+250ml Cup', color: '#2563eb' }, action: 'add_250' },
+      { type: 'button', props: { label: '+500ml Bottle', color: '#1d4ed8' }, action: 'add_500' }
+    ]}
+  },
+  { type: 'text', props: { label: 'Keep hydrated to maintain peak cognitive function.' } }
+];
 
-  try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${config.gemini}`;
+function App() {
+  const [uiState, setUiState] = useState(TEST_BLUEPRINT);
+
+  // The "Nerve Center" - This handles ALL clicks from ANY atom
+  const handleAction = (actionId: string, value?: any) => {
+    console.log(`⚡ Action Triggered: ${actionId}`);
     
-    const payload = {
-      contents: [{
-        parts: [{
-          text: `SYSTEM: You are the Soul of Liquid OS. 
-          
-          LAYER 1 (CONVERSATION): Talk to the user naturally. Be proactive. If they mention a task, offer to build a tool for it.
-          
-          LAYER 2 (MANIFESTATION): After you decide what to say, you MUST generate a complete, high-fidelity interface that reflects the current state of the conversation. 
-          - If the user is vague, build an ADVANCED prototype based on your best guess.
-          - Use colors, icons, and multiple elements (buttons, sliders, status) to make it feel like a professional app.
+    // TEMPORARY LOGIC: Just to prove it's alive
+    if (actionId === 'add_250') {
+      alert("🌊 Splash! Added 250ml (Logic not connected yet)");
+    }
+  };
 
-          REPLY ONLY IN THIS JSON FORMAT:
-          {
-            "chat_reply": "Your verbal response to the user here.",
-            "ui": { "title": "...", "color": "hex", "icon": "emoji" },
-            "elements": [ 
-              { "type": "status", "props": {"label": "...", "value": "...", "color": "..."} },
-              { "type": "button", "props": {"label": "...", "color": "..."} },
-              { "type": "slider", "props": {"label": "...", "value": 0} }
-            ]
-          }`
-        }]
-      }]
-    };
+  return (
+    <div className="min-h-screen bg-slate-950 text-white p-6 font-sans">
+      
+      {/* HEADER */}
+      <div className="mb-8 text-center border-b border-slate-800 pb-4">
+        <h1 className="text-xl font-bold tracking-tight">LIQUID OS <span className="text-xs text-blue-500">v3.0</span></h1>
+      </div>
 
-    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    const data = await response.json();
-    const aiResponse = data.candidates[0].content.parts[0].text;
-    
-    // Sniper for the JSON
-    const jsonStart = aiResponse.indexOf('{');
-    const jsonEnd = aiResponse.lastIndexOf('}');
-    const newState = JSON.parse(aiResponse.substring(jsonStart, jsonEnd + 1));
+      {/* THE ATOMIC ENGINE */}
+      <AtomRender layout={uiState} onAction={handleAction} />
 
-    // Update the "Body" (The UI) and the "Voice" (The Chat) simultaneously
-    setAppState(newState);
-    setMessages(prev => [...prev, { sender: 'ai', content: newState.chat_reply }]);
-    
-    if(db) await addDoc(collection(db, "history"), { state: newState, timestamp: new Date().toISOString() });
+      {/* DEBUG CONSOLE (Visual proof for you) */}
+      <div className="fixed bottom-0 left-0 right-0 bg-slate-900 p-4 text-xs font-mono text-slate-500 border-t border-slate-800">
+        Status: Atom Engine Online. Waiting for Gemini...
+      </div>
+    </div>
+  );
+}
 
-  } catch (e) {
-    setMessages(prev => [...prev, { sender: 'ai', content: "My reflection layer blurred. Can you repeat that?" }]);
-  } finally {
-    setLoading(false);
-  }
-};
+export default App;
