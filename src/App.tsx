@@ -1,76 +1,93 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 // ==========================================
-// 1. THE BULLETPROOF ENGINE (v6.2)
+// 1. THE DEFENSIVE ENGINE (v6.3)
 // ==========================================
+
+// A. SAFE ATOM WRAPPER (Prevents White Screens)
+const SafeAtom = ({ atom, data, onAction, index }: any) => {
+  try {
+    if (!atom) return null;
+    const props = atom.props || {};
+
+    // 🛡️ DATA BINDING (CRASH PROOF)
+    // We force everything to String() before calling .replace()
+    // This fixes the "Number.replace is not a function" crash.
+    let displayValue = props.value;
+    
+    if (displayValue !== undefined && displayValue !== null) {
+       const strValue = String(displayValue); // FORCE STRING
+       if (strValue.includes('{')) {
+          displayValue = strValue.replace(/\{([^}]+)\}/g, (match, key) => {
+             const val = data[key];
+             if (val === undefined) return match;
+             if (typeof val === 'object') return JSON.stringify(val);
+             return String(val);
+          });
+       }
+    }
+
+    // 🛡️ SCRIPT FINDER
+    const script = atom.script || atom.action || props.script || props.action;
+
+    switch (atom.type) {
+      case 'hero':
+        return (
+          <div className="bg-slate-800 p-6 rounded-2xl text-center border border-slate-700 shadow-lg">
+            <h2 className="text-slate-400 text-xs uppercase tracking-wider font-bold mb-2">{props.label}</h2>
+            <div className="text-5xl font-black text-white truncate" style={{ color: props.color || '#fff' }}>
+              {displayValue}
+            </div>
+          </div>
+        );
+      case 'button':
+        return (
+          <button
+            onClick={() => onAction(script)}
+            className="w-full py-4 px-6 rounded-xl font-bold text-white transform transition active:scale-95 shadow-lg flex items-center justify-center gap-2"
+            style={{ backgroundColor: props.color || '#3b82f6' }}
+          >
+            {props.label}
+          </button>
+        );
+      case 'box':
+        return (
+          <div className={`flex gap-3 ${props.direction === 'row' ? 'flex-row' : 'flex-col'}`}>
+             {/* Recursive calls are safe because AtomRender handles the map */}
+             <AtomRender layout={props.children} onAction={onAction} data={data} />
+          </div>
+        );
+      case 'input':
+         return (
+           <div className="bg-slate-800 p-3 rounded-xl border border-slate-700">
+             <label className="text-xs text-slate-500 uppercase font-bold block mb-1">{props.label}</label>
+             <input className="bg-transparent w-full text-white outline-none" placeholder={props.placeholder} />
+           </div>
+         );
+      case 'text':
+        return <p className="text-slate-400 text-center text-sm">{props.label}</p>;
+      default:
+        return null;
+    }
+  } catch (err) {
+    // 🛡️ IF A COMPONENT CRASHES, RENDER THIS INSTEAD OF WHITE SCREEN
+    return (
+      <div className="bg-red-900/50 border border-red-500 text-red-200 text-xs p-2 rounded">
+        ⚠️ Render Error in Atom #{index}
+      </div>
+    );
+  }
+};
+
 const AtomRender = ({ layout, onAction, data }: { layout: any[], onAction: any, data: any }) => {
-  // 🛡️ CRASH GUARD: If layout isn't a list, render nothing.
   if (!layout || !Array.isArray(layout)) return null;
 
   return (
     <div className="flex flex-col gap-4 w-full">
-      {layout.map((atom, index) => {
-        if (!atom) return null;
-        const props = atom.props || {};
-
-        // 🔮 SAFER DATA BINDING (v6.2 Fix)
-        let displayValue = props.value;
-        
-        // If the value is "Start", keep it. If it's "{count}", replace it.
-        if (typeof displayValue === 'string') {
-          displayValue = displayValue.replace(/\{([^}]+)\}/g, (match, key) => {
-            const val = data[key];
-            if (val === undefined) return match;
-            
-            // 🛡️ OBJECT SANITIZER: Prevent "Objects are not valid as a React child" crash
-            if (typeof val === 'object') return JSON.stringify(val);
-            return String(val); 
-          });
-        }
-
-        // 🛡️ ROBUST SCRIPT FINDER
-        const script = atom.script || atom.action || props.script || props.action;
-
-        switch (atom.type) {
-          case 'hero':
-            return (
-              <div key={index} className="bg-slate-800 p-6 rounded-2xl text-center border border-slate-700 shadow-lg">
-                <h2 className="text-slate-400 text-xs uppercase tracking-wider font-bold mb-2">{props.label}</h2>
-                <div className="text-5xl font-black text-white truncate" style={{ color: props.color || '#fff' }}>
-                  {displayValue}
-                </div>
-              </div>
-            );
-          case 'button':
-            return (
-              <button
-                key={index}
-                onClick={() => onAction(script)}
-                className="w-full py-4 px-6 rounded-xl font-bold text-white transform transition active:scale-95 shadow-lg flex items-center justify-center gap-2"
-                style={{ backgroundColor: props.color || '#3b82f6' }}
-              >
-                {props.label}
-              </button>
-            );
-          case 'box':
-            return (
-              <div key={index} className={`flex gap-3 ${props.direction === 'row' ? 'flex-row' : 'flex-col'}`}>
-                <AtomRender layout={props.children} onAction={onAction} data={data} />
-              </div>
-            );
-          case 'input':
-             return (
-               <div key={index} className="bg-slate-800 p-3 rounded-xl border border-slate-700">
-                 <label className="text-xs text-slate-500 uppercase font-bold block mb-1">{props.label}</label>
-                 <input className="bg-transparent w-full text-white outline-none" placeholder={props.placeholder} />
-               </div>
-             );
-          case 'text':
-            return <p key={index} className="text-slate-400 text-center text-sm">{props.label}</p>;
-          default:
-            return null;
-        }
-      })}
+      {layout.map((atom, index) => (
+        // Key is index to ensure re-render if order changes
+        <SafeAtom key={index} index={index} atom={atom} data={data} onAction={onAction} />
+      ))}
     </div>
   );
 };
@@ -80,7 +97,7 @@ const AtomRender = ({ layout, onAction, data }: { layout: any[], onAction: any, 
 // ==========================================
 const SYSTEM_CONFIG = {
   modelName: "gemini-2.5-flash",
-  storageKey: "liquid_os_v6_2_safe", // New Key -> Fresh Start
+  storageKey: "liquid_os_v6_3_defensive", // New Key -> Fresh Start
   apiVersion: "v1beta"
 };
 
@@ -113,7 +130,7 @@ Example:
 export default function App() {
   const [config, setConfig] = useState<any>(null);
   const [setupMode, setSetupMode] = useState(true);
-  const [history, setHistory] = useState<any[]>([{ role: 'ai', text: 'Safe Mode Online.' }]);
+  const [history, setHistory] = useState<any[]>([{ role: 'ai', text: 'Defensive Mode Online.' }]);
   
   const [activeTool, setActiveTool] = useState<any[] | null>(null);
   const [toolData, setToolData] = useState<any>({}); 
@@ -198,7 +215,6 @@ export default function App() {
     }
   };
 
-  // ⚡ LOGIC HANDLER
   const handleScript = (script: any) => {
     if (!script) return alert("Button has no script!");
     
@@ -214,7 +230,7 @@ export default function App() {
        return alert("Unknown action: " + script);
     }
 
-    // 2. JSON Logic (e.g. {cmd: "add"})
+    // 2. JSON Logic
     const { cmd, key, val } = script;
     if (!key) return alert("Script missing 'key'");
 
@@ -235,7 +251,7 @@ export default function App() {
   if (setupMode) return (
     <div className="h-screen bg-slate-950 text-white flex items-center justify-center p-6">
       <form onSubmit={handleSave} className="bg-slate-900 p-6 rounded-xl w-full max-w-sm border border-slate-800">
-        <h1 className="text-xl font-bold mb-4">Liquid OS <span className="text-blue-500">SafeMode</span></h1>
+        <h1 className="text-xl font-bold mb-4">Liquid OS <span className="text-blue-500">Defense</span></h1>
         <input name="userName" placeholder="Name" className="w-full bg-slate-800 border border-slate-700 p-2 rounded mb-2" />
         <input name="geminiKey" type="password" placeholder="Gemini Key" required className="w-full bg-slate-800 border border-slate-700 p-2 rounded mb-4" />
         <button className="w-full bg-blue-600 p-3 rounded font-bold">Start System</button>
@@ -247,7 +263,7 @@ export default function App() {
   return (
     <div className="h-screen bg-slate-950 text-white flex flex-col font-sans overflow-hidden">
       <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-        <h1 className="font-bold">LIQUID OS <span className="text-xs text-green-400">v6.2</span></h1>
+        <h1 className="font-bold">LIQUID OS <span className="text-xs text-green-400">v6.3</span></h1>
         <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="text-xs text-red-500">Factory Reset</button>
       </div>
 
