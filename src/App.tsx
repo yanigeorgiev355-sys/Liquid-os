@@ -1,23 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AtomRender } from './components/AtomRender';
 
 // ==========================================
-// ⚙️ SYSTEM SETTINGS (CONTROL PANEL)
-// Change these values to update the system
+// ⚙️ SYSTEM SETTINGS
 // ==========================================
 const SYSTEM_CONFIG = {
-  modelName: "gemini-2.5-flash", // 🟢 Your proven model
-  storageKey: "liquid_os_config_v3",
+  modelName: "gemini-2.5-flash",
+  storageKey: "liquid_os_config_v4_hybrid", // Updated version
   apiVersion: "v1beta"
 };
 
-// ==========================================
-// 🧠 THE BRAIN DEFINITION
-// ==========================================
+// 🧠 HYBRID PROTOCOL: Text + UI
 const SYSTEM_PROMPT = `
-You are Liquid OS. You do NOT speak text. You speak JSON.
-User input will be a request for a tool.
-You must return a JSON object describing a UI using ONLY these atoms:
+You are Liquid OS. You are a helpful AI Assistant that can build interfaces.
+When a user asks for something, you must reply with a JSON object containing:
+1. "chat": A friendly, short response to the user.
+2. "tool": (Optional) A UI definition if a tool is needed.
+
+AVAILABLE ATOMS:
 - hero (props: label, value, color)
 - button (props: label, color, action_id)
 - input (props: label, placeholder)
@@ -26,33 +26,48 @@ You must return a JSON object describing a UI using ONLY these atoms:
 
 EXAMPLE JSON:
 {
-  "tool_id": "example",
-  "layout": [
-    { "type": "text", "props": { "label": "Hello World" } }
-  ]
+  "chat": "I have created a counter for you.",
+  "tool": {
+    "tool_id": "counter",
+    "layout": [
+      { "type": "hero", "props": { "label": "Count", "value": "{count}" } },
+      { "type": "button", "props": { "label": "+1" }, "action": "increment" }
+    ]
+  }
 }
-
-Respond ONLY with raw JSON. No markdown formatting.
 `;
 
-// 📐 TYPES
 interface UserConfig {
   geminiKey: string;
   userName: string;
 }
 
+interface Message {
+  role: 'user' | 'ai';
+  text?: string;
+  tool?: any; // The UI Payload
+}
+
 function App() {
-  // 🔒 STATE
   const [config, setConfig] = useState<UserConfig | null>(null);
   const [setupMode, setSetupMode] = useState(true);
-  const [uiState, setUiState] = useState([
-    { type: 'hero', props: { label: 'Liquid OS', value: 'Ready', color: '#64748b' } },
-    { type: 'text', props: { label: `Running on ${SYSTEM_CONFIG.modelName}` } }
+  
+  // 📜 CHAT HISTORY + TOOL STATE
+  const [history, setHistory] = useState<Message[]>([
+    { role: 'ai', text: 'Liquid OS Online. I can build tools for you.' }
   ]);
+  const [activeTool, setActiveTool] = useState<any>(null); // The currently displayed tool
+  const [toolData, setToolData] = useState({ count: 0 }); // Live Data
+  
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // 🚀 BOOT
+  // Auto-scroll to bottom of chat
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [history]);
+
   useEffect(() => {
     const saved = localStorage.getItem(SYSTEM_CONFIG.storageKey);
     if (saved) {
@@ -61,7 +76,6 @@ function App() {
     }
   }, []);
 
-  // 💾 SAVE CONFIG
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     const fd = new FormData(e.target as HTMLFormElement);
@@ -75,88 +89,124 @@ function App() {
     setSetupMode(false);
   };
 
-  // 🧠 MANIFEST (THE API CALL)
-  const handleManifest = async () => {
+  const handleSend = async () => {
     if (!input.trim() || !config) return;
+    
+    // 1. Add User Message to Chat
+    const userMsg = input;
+    setHistory(prev => [...prev, { role: 'user', text: userMsg }]);
+    setInput("");
     setLoading(true);
 
     try {
-      // 🟢 DYNAMIC URL CONSTRUCTION
       const url = `https://generativelanguage.googleapis.com/${SYSTEM_CONFIG.apiVersion}/models/${SYSTEM_CONFIG.modelName}:generateContent?key=${config.geminiKey}`;
 
+      // 🧠 CONTEXT WINDOW: We send the last few messages so it remembers
+      const context = history.slice(-5).map(m => `${m.role}: ${m.text}`).join('\n');
+      
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{
             role: "user",
-            parts: [{ text: SYSTEM_PROMPT + `\n\nUser: ${input}` }]
+            parts: [{ text: SYSTEM_PROMPT + `\n\nHISTORY:\n${context}\n\nUser: ${userMsg}` }]
           }]
         })
       });
 
       const data = await response.json();
-      
-      if (data.error) throw new Error(data.error.message);
-      
       const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!aiText) throw new Error("AI Silent");
 
       // 🧹 SNIPER
       const cleanJson = aiText.replace(/```json/g, '').replace(/```/g, '').trim();
-      const blueprint = JSON.parse(cleanJson);
+      const payload = JSON.parse(cleanJson);
       
-      if (blueprint.layout) setUiState(blueprint.layout);
+      // 2. Add AI Response to Chat
+      setHistory(prev => [...prev, { role: 'ai', text: payload.chat }]);
+
+      // 3. Mount Tool (If exists)
+      if (payload.tool) {
+        setActiveTool(payload.tool.layout);
+        setToolData({ count: 0 }); // Reset data for new tool
+      }
 
     } catch (e: any) {
-      alert(`Error (${SYSTEM_CONFIG.modelName}): ${e.message}`);
+      setHistory(prev => [...prev, { role: 'ai', text: `Error: ${e.message}` }]);
     } finally {
       setLoading(false);
-      setInput("");
     }
   };
 
-  // ⚡ ACTION HANDLER
+  // ⚡ LOGIC ENGINE
   const handleAction = (id: string) => {
-    alert(`⚡ Action: ${id}\n(Simulated Database Write)`);
+    if (id === 'increment') setToolData(p => ({ ...p, count: p.count + 1 }));
+    else if (id === 'decrement') setToolData(p => ({ ...p, count: p.count - 1 }));
+    else alert(`Action: ${id}`);
   };
 
-  // 🖥️ RENDER SETUP
-  if (setupMode) {
-    return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
-        <form onSubmit={handleSave} className="bg-slate-900 p-8 rounded-2xl w-full max-w-md border border-slate-800">
-          <h1 className="text-xl font-bold mb-4">Liquid OS <span className="text-blue-500">Setup</span></h1>
-          <input name="userName" placeholder="Your Name" className="w-full bg-slate-800 p-3 rounded mb-3 border border-slate-700" />
-          <input name="geminiKey" type="password" placeholder="Gemini API Key" required className="w-full bg-slate-800 p-3 rounded mb-4 border border-slate-700" />
-          <button className="w-full bg-blue-600 p-3 rounded font-bold">Initialize</button>
-        </form>
-      </div>
-    );
-  }
+  // 💉 DATA INJECTOR
+  const renderWithData = (nodes: any[]): any[] => {
+    return nodes.map(node => {
+      const newNode = { ...node, props: { ...node.props } };
+      if (newNode.props.value === "{count}") newNode.props.value = toolData.count;
+      if (newNode.props.children) newNode.props.children = renderWithData(newNode.props.children);
+      return newNode;
+    });
+  };
 
-  // 🖥️ RENDER MAIN
+  if (setupMode) return <div className="p-10 bg-slate-900 text-white">Setup Mode...</div>;
+
   return (
-    <div className="min-h-screen bg-slate-950 text-white p-4 flex flex-col font-sans">
-      <div className="flex justify-between items-center pb-4 border-b border-slate-800">
-        <h1 className="font-bold">LIQUID OS <span className="text-xs text-green-500">{SYSTEM_CONFIG.modelName}</span></h1>
-        <button onClick={() => { localStorage.removeItem(SYSTEM_CONFIG.storageKey); window.location.reload(); }} className="text-xs text-slate-500">Reset</button>
+    <div className="h-screen bg-slate-950 text-white flex flex-col font-sans overflow-hidden">
+      
+      {/* 1. TOP BAR */}
+      <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950 z-10">
+        <h1 className="font-bold">LIQUID OS <span className="text-xs text-blue-400">Hybrid</span></h1>
+        <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="text-xs text-slate-500">Reset</button>
       </div>
 
-      <div className="flex-1 overflow-y-auto py-4">
-        <AtomRender layout={uiState} onAction={handleAction} />
+      {/* 2. SPLIT VIEW: Chat (Top) + Tool (Bottom) */}
+      <div className="flex-1 flex flex-col overflow-hidden relative">
+        
+        {/* A. CHAT SCROLL AREA */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-40">
+          {history.map((msg, i) => (
+            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[80%] p-3 rounded-2xl text-sm ${msg.role === 'user' ? 'bg-blue-600' : 'bg-slate-800'}`}>
+                {msg.text}
+              </div>
+            </div>
+          ))}
+          {loading && <div className="text-slate-500 text-xs animate-pulse">Thinking...</div>}
+          <div ref={chatEndRef} />
+        </div>
+
+        {/* B. ACTIVE TOOL OVERLAY (The "Liquid" Part) */}
+        {activeTool && (
+          <div className="absolute bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-700 p-4 rounded-t-3xl shadow-2xl transition-all duration-300 max-h-[50vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-xs uppercase text-slate-400 tracking-wider">Active Tool</span>
+              <button onClick={() => setActiveTool(null)} className="text-slate-500 hover:text-white">✕</button>
+            </div>
+            <AtomRender layout={renderWithData(activeTool)} onAction={handleAction} />
+          </div>
+        )}
+
       </div>
 
-      <div className="flex gap-2 pt-2 border-t border-slate-800">
+      {/* 3. INPUT AREA */}
+      <div className="p-4 bg-slate-950 border-t border-slate-800 flex gap-2 z-20">
         <input 
           value={input} 
           onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleManifest()}
-          placeholder="Command..." 
+          onKeyDown={e => e.key === 'Enter' && handleSend()}
+          placeholder="Chat or request a tool..." 
           className="flex-1 bg-slate-800 p-3 rounded-xl outline-none focus:ring-1 ring-blue-500"
         />
-        <button onClick={handleManifest} disabled={loading} className="bg-blue-600 px-4 rounded-xl font-bold">
-          {loading ? "..." : "Go"}
+        <button onClick={handleSend} disabled={loading} className="bg-blue-600 px-4 rounded-xl font-bold">
+          ↑
         </button>
       </div>
     </div>
