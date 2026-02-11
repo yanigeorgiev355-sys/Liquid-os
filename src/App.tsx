@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit } from "firebase/firestore";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // --- CONFIGURATION ---
+// Paste your key here. No extra spaces.
 const GEMINI_API_KEY = "AIzaSyAhhB16FzCUJtjfEmB7llffOgdavtEOQMU"; 
 
 const firebaseConfig = {
@@ -15,23 +15,19 @@ const firebaseConfig = {
   appId: "1:1091307817494:web:437b4013da4ad0bdc60337"
 };
 
-// Initialize Services
+// Initialize Firebase Only (No AI SDK needed)
 let db;
-let genAI;
 try {
   const app = initializeApp(firebaseConfig);
   db = getFirestore(app);
-  genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 } catch (e) {
-  console.error("Init Error", e);
+  console.error("Firebase Init Error", e);
 }
 
 // --- STYLES ---
 const styleTag = `
   @keyframes spin { 0% { transform: rotateY(0deg); } 100% { transform: rotateY(1800deg); } }
-  @keyframes breathe { 0% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.3); opacity: 1; } 100% { transform: scale(1); opacity: 0.5; } }
   .animate-spin-fast { animation: spin 1s ease-out forwards; }
-  .animate-breathe { animation: breathe 4s infinite ease-in-out; }
   .mic-button { transition: all 0.2s; }
   .mic-button:active { transform: scale(0.9); }
   .mic-active { box-shadow: 0 0 15px #ef4444; background: #ef4444 !important; }
@@ -86,7 +82,7 @@ const StatsBoard = () => {
 
 // --- MAIN APP ---
 function App() {
-  const [messages, setMessages] = useState([{ type: 'text', content: 'Online. Tap 🎤 and say "I can\'t decide".', sender: 'ai' }]);
+  const [messages, setMessages] = useState([{ type: 'text', content: 'Online. Tap 🎤 and say "Flip a coin".', sender: 'ai' }]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -94,6 +90,7 @@ function App() {
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
+  // --- THE NEW "DIRECT LINE" AI FUNCTION ---
   const handleSend = async (text) => {
     if (!text.trim()) return;
     setMessages(prev => [...prev, { type: 'text', content: text, sender: 'user' }]);
@@ -101,42 +98,59 @@ function App() {
     setLoading(true);
 
     try {
-      // USING THE FAST MODEL
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      // 1. We construct the URL manually. This bypasses the old SDK.
+      // We use 'gemini-1.5-flash' which is fast and supports JSON.
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
       
-      const prompt = `You are LiquidOS. The user said: "${text}". 
-      Reply ONLY in JSON format: {"tool": "coin"|"stats"|"text", "reply": "short message"}. 
-      If they seem indecisive, use "coin". If they ask for history, use "stats".`;
-      
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const cleanJson = response.text().replace(/```json/g, '').replace(/```/g, '').trim();
-      const data = JSON.parse(cleanJson);
+      const payload = {
+        contents: [{
+          parts: [{
+            text: `You are LiquidOS. User said: "${text}". 
+            Reply ONLY in JSON format: {"tool": "coin"|"stats"|"text", "reply": "short message"}.
+            If indecisive, use "coin". If asking history, use "stats".`
+          }]
+        }]
+      };
 
-      if (data.tool === 'text') {
-        setMessages(prev => [...prev, { type: 'text', content: data.reply, sender: 'ai' }]);
-      } else {
-        setMessages(prev => [...prev, { type: 'component', content: data.tool, sender: 'ai' }]);
+      // 2. Send the "Direct Line" message
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+      
+      // 3. Check for errors
+      if (data.error) {
+        throw new Error(data.error.message);
       }
+
+      // 4. Parse the AI's reply
+      const aiText = data.candidates[0].content.parts[0].text;
+      const cleanJson = aiText.replace(/```json/g, '').replace(/```/g, '').trim();
+      const toolData = JSON.parse(cleanJson);
+
+      if (toolData.tool === 'text') {
+        setMessages(prev => [...prev, { type: 'text', content: toolData.reply, sender: 'ai' }]);
+      } else {
+        setMessages(prev => [...prev, { type: 'component', content: toolData.tool, sender: 'ai' }]);
+      }
+
     } catch (e) {
-      console.error(e);
-      setMessages(prev => [...prev, { type: 'text', content: 'AI Error: ' + e.message, sender: 'ai' }]);
+      setMessages(prev => [...prev, { type: 'text', content: 'Connection Error: ' + e.message, sender: 'ai' }]);
     } finally {
       setLoading(false);
     }
   };
 
-  // --- VOICE LOGIC ---
   const toggleMic = () => {
     if (isListening) { setIsListening(false); return; }
-    
     const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
-    if (!SpeechRecognition) { alert("Use Chrome/Safari"); return; }
-
+    if (!SpeechRecognition) { alert("Use Chrome"); return; }
     const recognition = new SpeechRecognition();
     recognition.lang = 'en-US';
     recognition.continuous = false;
-    
     recognition.onstart = () => setIsListening(true);
     recognition.onend = () => setIsListening(false);
     recognition.onresult = (e) => {
@@ -168,14 +182,13 @@ function App() {
             )}
           </div>
         ))}
+        {loading && <div style={{color: '#94a3b8', fontSize: '0.8rem'}}>Connecting...</div>}
         <div ref={messagesEndRef} />
       </div>
 
       <div style={{ padding: '15px', background: '#0f172a', borderTop: '1px solid #1e293b' }}>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={toggleMic} className={`mic-button ${isListening ? 'mic-active' : ''}`} style={{ width: '45px', height: '45px', borderRadius: '50%', background: '#1e293b', border: 'none', color: 'white', fontSize: '1.2rem' }}>
-            {isListening ? '🛑' : '🎤'}
-          </button>
+          <button onClick={toggleMic} className={`mic-button ${isListening ? 'mic-active' : ''}`} style={{ width: '45px', height: '45px', borderRadius: '50%', background: '#1e293b', border: 'none', color: 'white', fontSize: '1.2rem' }}>{isListening ? '🛑' : '🎤'}</button>
           <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend(input)} placeholder="Speak..." style={{ flex: 1, background: '#1e293b', border: 'none', borderRadius: '20px', padding: '12px 20px', color: 'white', outline: 'none' }} />
           <button onClick={() => handleSend(input)} style={{ width: '45px', height: '45px', borderRadius: '50%', background: '#7c3aed', border: 'none', color: 'white' }}>➡️</button>
         </div>
